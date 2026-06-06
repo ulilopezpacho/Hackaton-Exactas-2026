@@ -17,27 +17,39 @@ export type Database = {
       trips: {
         Row: TimestampColumns & {
           country: string;
+          copied_from_trip_id: string | null;
+          current_day_number: number | null;
+          current_itinerary_item_id: string | null;
           destination_id: string | null;
           ends_on: string;
           id: string;
           owner_id: string;
           route_customization_prompt: string | null;
           starts_on: string;
+          status: string;
           timezone: string;
           title: string;
+          travel_completed_at: string | null;
+          travel_started_at: string | null;
           visibility: string;
         };
         Insert: {
           country?: string;
+          copied_from_trip_id?: string | null;
           created_at?: string;
+          current_day_number?: number | null;
+          current_itinerary_item_id?: string | null;
           destination_id?: string | null;
           ends_on: string;
           id?: string;
           owner_id: string;
           route_customization_prompt?: string | null;
           starts_on: string;
+          status?: string;
           timezone?: string;
           title: string;
+          travel_completed_at?: string | null;
+          travel_started_at?: string | null;
           updated_at?: string;
           visibility?: string;
         };
@@ -213,6 +225,32 @@ export type Database = {
           longitude: number;
           place_id: string;
         }[];
+      };
+      start_trip_travel: {
+        Args: {
+          target_item_id: string;
+          target_trip_id: string;
+        };
+        Returns: string;
+      };
+      advance_trip_travel: {
+        Args: {
+          target_trip_id: string;
+        };
+        Returns: {
+          current_day_number: number | null;
+          current_itinerary_item_id: string | null;
+          status: string;
+          trip_id: string;
+        }[];
+      };
+      apply_trip_replan: {
+        Args: {
+          operations?: Json;
+          strategy: string;
+          target_trip_id: string;
+        };
+        Returns: string;
       };
     };
     Enums: Record<string, never>;

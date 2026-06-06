@@ -62,13 +62,13 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/[tripId]`: functional Supabase-backed trip summary.
 - `/app/trips/[tripId]/itinerary`: functional Supabase-backed itinerary and map.
 - `/app/trips/[tripId]/itinerary/[dayNumber]`: functional day detail.
+- `/app/trips/[tripId]/travel`: functional Supabase-backed travel mode and replanning.
 - `/app/onboarding`: functional required preferences onboarding.
 - `/app/profile/preferences`: functional saved preferences editor.
 - `POST /api/trips/[tripId]/place-catalog`: functional one-shot destination and place catalog generation.
 
 ### Mocked
 
-- `/app/trips/[tripId]/travel`: mocked travel mode and replanning actions.
 - `/app/trips/[tripId]/settings`: mocked trip settings.
 - `/app/profile`: partially functional session read and saved preferences summary.
 

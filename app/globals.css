@@ -6,6 +6,10 @@
   display: none;
 }
 
+.app-shell:has([data-travel-mode-view]) > .app-header {
+  display: none;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

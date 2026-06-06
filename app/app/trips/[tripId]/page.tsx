@@ -49,7 +49,11 @@ export default async function TripPage({
         <div className="absolute inset-0 bg-linear-to-t from-black/75 via-black/20 to-transparent" />
         <div className="relative flex min-h-80 flex-col justify-end p-6 text-white sm:p-9">
           <Badge className="mb-4 bg-white/90 text-foreground" variant="secondary">
-            Viaje confirmado
+            {trip.travelStatus === "ongoing"
+              ? "Viaje en curso"
+              : trip.travelStatus === "completed"
+                ? "Viaje completado"
+                : "Viaje confirmado"}
           </Badge>
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/80">
             {trip.country}
@@ -82,7 +86,9 @@ export default async function TripPage({
               variant="outline"
             >
               <PlayIcon data-icon="inline-start" />
-              Modo viaje
+              {trip.travelStatus === "ongoing"
+                ? "Reanudar viaje"
+                : "Modo viaje"}
             </Button>
           </div>
         </div>
