@@ -36,6 +36,10 @@ const statusCopy: Record<
     label: "Borrador",
     tone: "bg-muted text-muted-foreground",
   },
+  generating: {
+    label: "Generando",
+    tone: "border-primary/40 bg-primary/10 text-primary",
+  },
   ongoing: {
     label: "En viaje",
     tone: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700",
@@ -52,6 +56,7 @@ const filters: {
 }[] = [
   { label: "Todos", value: "all" },
   { label: "Borradores", value: "draft" },
+  { label: "Generando", value: "generating" },
   { label: "En viaje", value: "ongoing" },
   { label: "Próximos", value: "upcoming" },
   { label: "Completados", value: "completed" },
@@ -59,6 +64,7 @@ const filters: {
 
 function formatCount(count: number, filter: TripFilter) {
   if (filter === "draft") return `${count} ${count === 1 ? "borrador" : "borradores"}`;
+  if (filter === "generating") return `${count} ${count === 1 ? "generando" : "generando"}`;
   if (filter === "ongoing") return `${count} ${count === 1 ? "en viaje" : "en viaje"}`;
   if (filter === "upcoming") return `${count} ${count === 1 ? "próximo" : "próximos"}`;
   if (filter === "completed") return `${count} ${count === 1 ? "completado" : "completados"}`;

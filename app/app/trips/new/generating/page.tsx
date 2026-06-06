@@ -20,19 +20,11 @@ export default async function GeneratingPage({ searchParams }: GeneratingPagePro
   }
 
   const supabase = await createClient();
-  const [{ data: trip }, { data: itineraries }] = await Promise.all([
-    supabase
-      .from("trips")
-      .select("id, title, starts_on, ends_on")
-      .eq("id", tripId)
-      .single(),
-    supabase
-      .from("itineraries")
-      .select("id, day_number")
-      .eq("trip_id", tripId)
-      .eq("itinerary_type", "wizard_tentative")
-      .order("day_number", { ascending: true }),
-  ]);
+  const { data: trip } = await supabase
+    .from("trips")
+    .select("id, title, starts_on, ends_on, route_customization_prompt")
+    .eq("id", tripId)
+    .single();
 
   if (!trip) {
     redirect("/app/trips/new/destination?error=missing-trip");
@@ -40,15 +32,15 @@ export default async function GeneratingPage({ searchParams }: GeneratingPagePro
 
   const steps = [
     "Guardamos destino, fechas y wishlist",
-    "Creamos los lugares en Supabase",
-    `Materializamos ${itineraries?.length ?? 0} días tentativos`,
-    "El agente puede tomarlo desde la base",
+    "Unimos tus notas con el orden de prioridades",
+    "Dejamos el contexto en el viaje para el LLM",
+    "El agente va a generar el plan final",
   ];
 
   return (
     <PageShell
       eyebrow="Armando tu viaje"
-      title={`Diseñando ${trip.title} desde un borrador real`}
+      title={`Preparando ${trip.title} para el generador`}
     >
       <Card>
         <CardContent className="flex flex-col items-center gap-6 py-10 text-center">
@@ -58,13 +50,18 @@ export default async function GeneratingPage({ searchParams }: GeneratingPagePro
           <div>
             <Badge variant="secondary">
               <DatabaseIcon data-icon="inline-start" />
-              Itinerario tentativo guardado
+              Contexto de generación guardado
             </Badge>
             <p className="mt-3 max-w-md text-sm text-muted-foreground">
-              Esta pantalla queda como transición hacia la parte agentic. La
-              base ya contiene el viaje y los bloques horarios iniciales.
+              La base contiene el viaje y el prompt de personalización. El
+              itinerario todavía no existe: lo va a crear el flujo LLM.
             </p>
           </div>
+          {trip.route_customization_prompt ? (
+            <div className="max-h-44 w-full max-w-md overflow-y-auto rounded-xl border bg-muted/40 p-4 text-left text-xs leading-relaxed text-muted-foreground">
+              {trip.route_customization_prompt}
+            </div>
+          ) : null}
           <div className="grid w-full max-w-md gap-3 text-left">
             {steps.map((step, index) => (
               <div className="flex items-center gap-3 text-sm" key={step}>
@@ -80,13 +77,6 @@ export default async function GeneratingPage({ searchParams }: GeneratingPagePro
             ))}
           </div>
           <div className="flex flex-wrap justify-center gap-3">
-            <Button
-              nativeButton={false}
-              render={<Link href={`/app/trips/${trip.id}/itinerary`} />}
-              variant="secondary"
-            >
-              Ver itinerario
-            </Button>
             <Button nativeButton={false} render={<Link href="/app/trips" />}>
               Volver a viajes
             </Button>

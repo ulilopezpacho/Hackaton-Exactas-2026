@@ -42,6 +42,17 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Supabase Auth is already wired through `@supabase/ssr`, cookies, `proxy.ts`, and `/auth/callback`.
 - Promotions are out of scope for now. Do not add promotions pages, API routes, or UI until the team reopens that feature.
 
+## Trip status contract
+
+`trips.status` is the source of truth for the trip lifecycle:
+
+- `planned`: trip draft/confirmed shell exists, but the user has not submitted generation context yet.
+- `generating`: destination, dates, notes, and ordered place priorities are stored in `trips.route_customization_prompt`; the LLM flow is responsible for creating the final `itineraries` and `itinerary_items`.
+- `ongoing`: travel mode has started and `current_day_number` / `current_itinerary_item_id` identify the current stop.
+- `completed`: travel mode reached the end of the trip.
+
+The trip creation wizard must not create itineraries or itinerary items. It only creates the trip shell and stores generation context for the LLM.
+
 ## Page implementation status
 
 Use this list as the source of truth when replacing mock pages with functional pages. When a route stops being mock-data driven, update its status in the same change.
@@ -58,7 +69,7 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/new/destination`: functional trip draft creation.
 - `/app/trips/new/places`: functional place selection with Google Places/manual fallback.
 - `/app/trips/new/preferences`: redirects to `/app/trips/new/places` with inline preferences open.
-- `/app/trips/new/generating`: functional tentative itinerary handoff screen.
+- `/app/trips/new/generating`: functional LLM generation context handoff screen.
 - `/app/trips/[tripId]`: functional Supabase-backed trip summary.
 - `/app/trips/[tripId]/itinerary`: functional Supabase-backed itinerary and map.
 - `/app/trips/[tripId]/itinerary/[dayNumber]`: functional day detail.

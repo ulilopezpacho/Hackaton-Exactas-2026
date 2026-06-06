@@ -23,7 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
-import { saveTentativeItinerary } from "../actions";
+import { saveTripGenerationContext } from "../actions";
 
 type TripSummary = {
   endsOn: string;
@@ -202,7 +202,7 @@ export function TripPlacesForm({
   }
 
   return (
-    <form action={saveTentativeItinerary} className="grid gap-6">
+    <form action={saveTripGenerationContext} className="grid gap-6">
       <input name="payload" type="hidden" value={payload} />
 
       <Card className="border-primary/10">
@@ -375,7 +375,7 @@ export function TripPlacesForm({
           type="submit"
         >
           <SparklesIcon data-icon="inline-start" />
-          Generar itinerario
+          Enviar al generador
         </Button>
       </div>
     </form>

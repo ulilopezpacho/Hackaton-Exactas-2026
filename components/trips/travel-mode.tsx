@@ -50,6 +50,7 @@ type RecommendationPreview = {
   explanation: string;
   operations: RecommendedOperation[];
   scenario: Scenario;
+  strategy: Strategy;
 };
 
 function navigableItems(day: ItineraryDayDto) {
@@ -312,7 +313,7 @@ function ReplanSheet({
     let cancelled = false;
 
     void fetch(`/api/trips/${trip.id}/travel/replan/preview`, {
-      body: JSON.stringify({ scenario }),
+      body: JSON.stringify({ scenario, strategy }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
     })
@@ -335,7 +336,7 @@ function ReplanSheet({
     return () => {
       cancelled = true;
     };
-  }, [open, scenario, trip.id]);
+  }, [open, scenario, strategy, trip.id]);
 
   function toggleOperation(id: string) {
     setPreview((current) =>
@@ -385,8 +386,6 @@ function ReplanSheet({
       setPending(false);
     }
   }
-
-  const dropItem = upcoming.at(-1);
 
   return (
     <Sheet onOpenChange={setOpen} open={open}>
@@ -440,30 +439,35 @@ function ReplanSheet({
               title="Recortar tiempos"
             />
             {strategy === "trim" ? (
-              <div className="flex flex-wrap gap-2 rounded-xl bg-muted/60 p-3">
-                {upcoming.map((item) => (
-                  <span
-                    className="rounded-lg bg-card px-2.5 py-1.5 text-xs"
-                    key={item.id}
-                  >
-                    {itemName(item)} ·{" "}
-                    <span className="line-through opacity-50">
-                      {formatDuration(item.durationMinutes)}
-                    </span>{" "}
-                    →{" "}
-                    <strong>
-                      {formatDuration(
-                        Math.min(
-                          item.durationMinutes,
-                          Math.max(
-                            30,
-                            Math.round(item.durationMinutes * 0.7),
-                          ),
-                        ),
-                      )}
-                    </strong>
-                  </span>
-                ))}
+              <div className="grid gap-2 rounded-xl border bg-card p-3">
+                <p className="text-sm text-muted-foreground">
+                  {preview?.strategy === "trim"
+                    ? preview.explanation
+                    : "Calculando recorte…"}
+                </p>
+                {preview?.strategy === "trim"
+                  ? preview.operations.map((operation) => (
+                      <span
+                        className="rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs"
+                        key={operation.id}
+                      >
+                        {operation.label}
+                        {operation.previousDurationMinutes &&
+                        operation.durationMinutes ? (
+                          <>
+                            {" · "}
+                            <span className="line-through opacity-50">
+                              {formatDuration(operation.previousDurationMinutes)}
+                            </span>{" "}
+                            →{" "}
+                            <strong>
+                              {formatDuration(operation.durationMinutes)}
+                            </strong>
+                          </>
+                        ) : null}
+                      </span>
+                    ))
+                  : null}
               </div>
             ) : null}
 
@@ -474,12 +478,23 @@ function ReplanSheet({
               onClick={() => setStrategy("recalculate")}
               title="Recalcular itinerario"
             />
-            {strategy === "recalculate" && dropItem ? (
-              <div className="rounded-xl border bg-card p-3 text-sm text-muted-foreground">
-                Dejarías de hacer:{" "}
-                <span className="font-semibold line-through">
-                  {itemName(dropItem)}
-                </span>
+            {strategy === "recalculate" ? (
+              <div className="grid gap-2 rounded-xl border bg-card p-3">
+                <p className="text-sm text-muted-foreground">
+                  {preview?.strategy === "recalculate"
+                    ? preview.explanation
+                    : "Calculando alternativa…"}
+                </p>
+                {preview?.strategy === "recalculate"
+                  ? preview.operations.map((operation) => (
+                      <span
+                        className="rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs"
+                        key={operation.id}
+                      >
+                        {operation.label}
+                      </span>
+                    ))
+                  : null}
               </div>
             ) : null}
 

@@ -2,6 +2,7 @@ import { getTrip } from "@/lib/trips/data";
 
 type PreviewRequest = {
   scenario?: "closed" | "overstay";
+  strategy?: "trim" | "recalculate" | "recommended";
 };
 
 export async function POST(
@@ -11,7 +12,12 @@ export async function POST(
   const { tripId } = await params;
   const body = (await request.json()) as PreviewRequest;
   const scenario = body.scenario ?? "overstay";
+  const strategy = body.strategy ?? "recommended";
   const trip = await getTrip(tripId);
+
+  if (!["trim", "recalculate", "recommended"].includes(strategy)) {
+    return Response.json({ error: "Unsupported strategy" }, { status: 400 });
+  }
 
   if (!trip || !trip.isOwner) {
     return Response.json({ error: "Trip not found" }, { status: 404 });
@@ -29,6 +35,44 @@ export async function POST(
     (item) => item.id === trip.currentItineraryItemId,
   );
   const upcoming = navigableItems.slice(Math.max(0, currentIndex + 1));
+
+  if (strategy === "trim") {
+    const operations = upcoming.map((item) => trimOperation(item));
+
+    return Response.json({
+      explanation: operations.length
+        ? "Mantenés todos los puntos pendientes y recortás sus tiempos para recuperar margen."
+        : "No quedan puntos pendientes para recortar.",
+      operations,
+      scenario,
+      strategy,
+    });
+  }
+
+  if (strategy === "recalculate") {
+    const dropItem = upcoming.at(-1);
+    const operations = dropItem
+      ? [
+          {
+            enabled: true,
+            id: `remove-${dropItem.id}`,
+            itemId: dropItem.id,
+            label: `Quitar ${dropItem.place?.name ?? dropItem.title}`,
+            type: "remove" as const,
+          },
+        ]
+      : [];
+
+    return Response.json({
+      explanation: operations.length
+        ? "Quitás el último punto pendiente para liberar tiempo sin tocar el punto actual."
+        : "No quedan puntos pendientes para recalcular.",
+      operations,
+      scenario,
+      strategy,
+    });
+  }
+
   const operations =
     scenario === "closed"
       ? upcoming.slice(0, 1).map((item) => ({
@@ -38,21 +82,7 @@ export async function POST(
           label: `Quitar ${item.place?.name ?? item.title}`,
           type: "remove" as const,
         }))
-      : upcoming.slice(0, 2).map((item) => ({
-          durationMinutes: Math.max(
-            1,
-            Math.min(
-              item.durationMinutes,
-              Math.max(30, Math.round(item.durationMinutes * 0.7)),
-            ),
-          ),
-          enabled: true,
-          id: `trim-${item.id}`,
-          itemId: item.id,
-          label: `Acortar ${item.place?.name ?? item.title}`,
-          previousDurationMinutes: item.durationMinutes,
-          type: "trim" as const,
-        }));
+      : upcoming.slice(0, 2).map(trimOperation);
 
   return Response.json({
     explanation:
@@ -65,5 +95,29 @@ export async function POST(
           : "No quedan puntos pendientes que necesiten ajustes.",
     operations,
     scenario,
+    strategy,
   });
+}
+
+function trimOperation(item: {
+  durationMinutes: number;
+  id: string;
+  place: { name: string } | null;
+  title: string;
+}) {
+  return {
+    durationMinutes: Math.max(
+      1,
+      Math.min(
+        item.durationMinutes,
+        Math.max(30, Math.round(item.durationMinutes * 0.7)),
+      ),
+    ),
+    enabled: true,
+    id: `trim-${item.id}`,
+    itemId: item.id,
+    label: `Acortar ${item.place?.name ?? item.title}`,
+    previousDurationMinutes: item.durationMinutes,
+    type: "trim" as const,
+  };
 }

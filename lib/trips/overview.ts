@@ -70,6 +70,10 @@ function tripStatus(
   endsOn: string,
   storedStatus: string,
 ): TripStatus {
+  if (storedStatus === "generating") {
+    return "generating";
+  }
+
   if (activeItineraries.length === 0) {
     return "draft";
   }
@@ -114,9 +118,10 @@ function placesLabel(status: TripStatus, placeCount: number, tripDayCount: numbe
 function sortTrips(trips: TripOverview[]) {
   const statusOrder: Record<TripStatus, number> = {
     ongoing: 0,
-    upcoming: 1,
-    completed: 2,
-    draft: 3,
+    generating: 1,
+    upcoming: 2,
+    completed: 3,
+    draft: 4,
   };
 
   return trips.toSorted((first, second) => {
@@ -284,6 +289,7 @@ export async function getTripsOverview(): Promise<TripsOverview> {
     trips,
     upcomingTrip:
       trips.find((trip) => trip.status === "ongoing") ??
+      trips.find((trip) => trip.status === "generating") ??
       trips.find((trip) => trip.status === "upcoming") ??
       null,
   };

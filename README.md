@@ -21,6 +21,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 The itinerary map uses the Google Maps JavaScript API. Configure:
 
 ```bash
+GOOGLE_MAPS_API_KEY=...
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=...
 NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=...
 ```
@@ -40,12 +41,38 @@ Enable billing and Maps JavaScript API, then restrict the browser key to the
 application's HTTP referrers. Without these variables, the itinerary keeps
 working and shows a configuration placeholder in the map tab.
 
+City and place search use the server-side `GOOGLE_MAPS_API_KEY` through the
+app's Places endpoints. They do not return mock place data when the key is
+missing; the trip wizard keeps the manual place fallback available instead.
+
 ## Demo trip
 
 `supabase/seed.sql` creates an idempotent Madrid trip for
 `guidoadleredu@gmail.com` using deterministic UUIDs. Apply the migrations,
 run the seed, and execute `supabase/tests/trip_itinerary_rls.sql` with an
 administrative database connection to verify owner and non-owner RLS behavior.
+
+## Trip creation flow
+
+The trip wizard does not create itineraries. Destination and dates create a
+Supabase-backed trip draft, and the places step stores the user's free-form
+notes plus their ordered place priorities in `trips.route_customization_prompt`.
+The LLM generation flow owns the final itinerary structure and is responsible
+for creating `itineraries` and `itinerary_items`.
+
+## Travel mode data flow
+
+Travel mode is Supabase-backed. The UI reads the trip through `getTrip()` and
+mutates travel state through route handlers:
+
+- `POST /api/trips/[tripId]/travel/start`
+- `POST /api/trips/[tripId]/travel/advance`
+- `POST /api/trips/[tripId]/travel/replan/preview`
+- `POST /api/trips/[tripId]/travel/replan/apply`
+
+Replanning previews are served by the preview endpoint for every strategy, so
+the client does not keep mock replan data or locally fabricate the list of
+changes shown to the user.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

@@ -32,6 +32,22 @@ function formatDateRange(startsOn: string, endsOn: string) {
   )}`;
 }
 
+function tripStatusLabel(status: "planned" | "generating" | "ongoing" | "completed") {
+  if (status === "ongoing") {
+    return "Viaje en curso";
+  }
+
+  if (status === "completed") {
+    return "Viaje completado";
+  }
+
+  if (status === "generating") {
+    return "Generando itinerario";
+  }
+
+  return "Viaje confirmado";
+}
+
 export default async function TripPage({
   params,
 }: PageProps<"/app/trips/[tripId]">) {
@@ -49,11 +65,7 @@ export default async function TripPage({
         <div className="absolute inset-0 bg-linear-to-t from-black/75 via-black/20 to-transparent" />
         <div className="relative flex min-h-80 flex-col justify-end p-6 text-white sm:p-9">
           <Badge className="mb-4 bg-white/90 text-foreground" variant="secondary">
-            {trip.travelStatus === "ongoing"
-              ? "Viaje en curso"
-              : trip.travelStatus === "completed"
-                ? "Viaje completado"
-                : "Viaje confirmado"}
+            {tripStatusLabel(trip.travelStatus)}
           </Badge>
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/80">
             {trip.country}
@@ -72,10 +84,20 @@ export default async function TripPage({
           <div className="mt-7 flex flex-wrap gap-3">
             <Button
               nativeButton={false}
-              render={<Link href={`/app/trips/${trip.id}/itinerary`} />}
+              render={
+                <Link
+                  href={
+                    trip.travelStatus === "generating"
+                      ? `/app/trips/new/generating?tripId=${trip.id}`
+                      : `/app/trips/${trip.id}/itinerary`
+                  }
+                />
+              }
               size="lg"
             >
-              Ver itinerario
+              {trip.travelStatus === "generating"
+                ? "Ver generación"
+                : "Ver itinerario"}
               <ArrowRightIcon data-icon="inline-end" />
             </Button>
             <Button
@@ -97,10 +119,19 @@ export default async function TripPage({
       <div className="grid gap-4 md:grid-cols-3">
         {[
           {
-            description: `${trip.days.length} jornadas con horarios y traslados.`,
-            href: `/app/trips/${trip.id}/itinerary`,
+            description:
+              trip.travelStatus === "generating"
+                ? "El LLM todavía está preparando el plan final."
+                : `${trip.days.length} jornadas con horarios y traslados.`,
+            href:
+              trip.travelStatus === "generating"
+                ? `/app/trips/new/generating?tripId=${trip.id}`
+                : `/app/trips/${trip.id}/itinerary`,
             icon: MapPinnedIcon,
-            label: "Abrir itinerario",
+            label:
+              trip.travelStatus === "generating"
+                ? "Ver generación"
+                : "Abrir itinerario",
             title: "Plan día por día",
           },
           {

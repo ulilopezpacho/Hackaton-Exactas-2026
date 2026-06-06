@@ -2,19 +2,16 @@
 
 import { redirect } from "next/navigation";
 
-import type { Database } from "@/lib/supabase/database.types";
-import {
-  buildSequentialItineraryItems,
-  parseTripDates,
-  type WizardPlaceDraft,
-} from "@/lib/trips/wizard";
+import { parseTripDates } from "@/lib/trips/wizard";
 import { createClient } from "@/utils/supabase/server";
 
-type WizardPlacePayload = WizardPlaceDraft & {
+type WizardPlacePayload = {
   address?: string | null;
   category?: string | null;
+  durationMinutes: number;
   latitude?: number | null;
   longitude?: number | null;
+  name: string;
   placeId?: string;
 };
 
@@ -27,10 +24,6 @@ type WizardDraftPayload = {
   title: string;
   tripId: string;
 };
-
-type PlaceInsert = Database["public"]["Tables"]["places"]["Insert"];
-type ItineraryItemInsert =
-  Database["public"]["Tables"]["itinerary_items"]["Insert"];
 
 export async function createTripDraft(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
@@ -75,10 +68,11 @@ export async function createTripDraft(formData: FormData) {
   redirect(`/app/trips/new/places?tripId=${trip.id}`);
 }
 
-export async function saveTentativeItinerary(formData: FormData) {
+export async function saveTripGenerationContext(formData: FormData) {
   const payloadValue = String(formData.get("payload") ?? "");
   const payload = parseWizardDraftPayload(payloadValue);
-  const range = parseTripDates(payload.startsOn, payload.endsOn);
+  parseTripDates(payload.startsOn, payload.endsOn);
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -99,14 +93,19 @@ export async function saveTentativeItinerary(formData: FormData) {
     redirect("/app/trips/new/destination?error=missing-trip");
   }
 
-  await supabase
+  const customizationPrompt = buildCustomizationPrompt(payload);
+  const { error: promptError } = await supabase
     .from("trips")
-    .update({ route_customization_prompt: payload.notes || null })
+    .update({
+      route_customization_prompt: customizationPrompt,
+      status: "generating",
+    })
     .eq("id", payload.tripId)
     .eq("owner_id", user.id);
 
-  const places = await upsertPlaces(payload.places, user.id);
-  const generationPrompt = buildGenerationPrompt(payload);
+  if (promptError) {
+    redirect(`/app/trips/new/places?tripId=${payload.tripId}&error=prompt`);
+  }
 
   const { data: existingItineraries } = await supabase
     .from("itineraries")
@@ -121,57 +120,7 @@ export async function saveTentativeItinerary(formData: FormData) {
     await supabase.from("itineraries").delete().in("id", existingIds);
   }
 
-  const dayInserts = Array.from({ length: range.dayCount }, (_, index) => ({
-    day_number: index + 1,
-    generation_prompt: generationPrompt,
-    itinerary_type: "wizard_tentative",
-    status: "draft" as const,
-    title: `Día ${index + 1}`,
-    trip_id: payload.tripId,
-  }));
-  const { data: itineraries, error: itineraryError } = await supabase
-    .from("itineraries")
-    .insert(dayInserts)
-    .select("id, day_number");
-
-  if (itineraryError || !itineraries) {
-    redirect(`/app/trips/new/places?tripId=${payload.tripId}&error=itinerary`);
-  }
-
-  const itineraryIdByDay = new Map(
-    itineraries.map(({ day_number, id }) => [day_number, id]),
-  );
-  const items = buildSequentialItineraryItems({
-    ...range,
-    places: payload.places.map((place) => ({
-      durationMinutes: place.durationMinutes,
-      name: place.name,
-      placeId: place.placeId,
-    })),
-  });
-  const itemInserts: ItineraryItemInsert[] = items.map((item) => ({
-    description: null,
-    ends_at: item.endsAt,
-    itinerary_id: itineraryIdByDay.get(item.dayNumber) ?? itineraries[0].id,
-    item_type: "place",
-    locked: false,
-    place_id: places[item.position]?.id ?? null,
-    position: item.position,
-    starts_at: item.startsAt,
-    title: item.title,
-  }));
-
-  if (itemInserts.length > 0) {
-    const { error: itemsError } = await supabase
-      .from("itinerary_items")
-      .insert(itemInserts);
-
-    if (itemsError) {
-      redirect(`/app/trips/new/places?tripId=${payload.tripId}&error=items`);
-    }
-  }
-
-  redirect(`/app/trips/${payload.tripId}/itinerary`);
+  redirect(`/app/trips/new/generating?tripId=${payload.tripId}`);
 }
 
 function parseWizardDraftPayload(value: string): WizardDraftPayload {
@@ -241,65 +190,18 @@ function parseWizardDraftPayload(value: string): WizardDraftPayload {
   };
 }
 
-async function upsertPlaces(places: WizardPlacePayload[], userId: string) {
-  const supabase = await createClient();
-  const persisted = [];
-
-  for (const place of places) {
-    const existing =
-      place.placeId &&
-      (await supabase
-        .from("places")
-        .select("id")
-        .eq("owner_id", userId)
-        .eq("source", "google")
-        .eq("external_id", place.placeId)
-        .maybeSingle());
-
-    if (existing && existing.data) {
-      persisted.push(existing.data);
-      continue;
-    }
-
-    const insert: PlaceInsert = {
-      address: place.address ?? null,
-      category: place.category ?? null,
-      default_duration_minutes: place.durationMinutes,
-      external_id: place.placeId ?? null,
-      location:
-        place.latitude !== null &&
-        place.latitude !== undefined &&
-        place.longitude !== null &&
-        place.longitude !== undefined
-          ? `SRID=4326;POINT(${place.longitude} ${place.latitude})`
-          : null,
-      name: place.name,
-      owner_id: userId,
-      source: place.placeId ? "google" : "manual",
-      status: "active",
-    };
-    const { data, error } = await supabase
-      .from("places")
-      .insert(insert)
-      .select("id")
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    persisted.push(data);
-  }
-
-  return persisted;
-}
-
-function buildGenerationPrompt(payload: WizardDraftPayload) {
+function buildCustomizationPrompt(payload: WizardDraftPayload) {
+  const notes = payload.notes || `El usuario no agregó notas libres.`;
   const priorityText = payload.places
-    .map((place, index) => `${index + 1}. ${place.name}`)
+    .map((place, index) => {
+      const details = [place.address, place.category]
+        .filter(Boolean)
+        .join(" · ");
+      return details
+        ? `${index + 1}. ${place.name} (${details})`
+        : `${index + 1}. ${place.name}`;
+    })
     .join("\n");
-  const customizationPrompt =
-    payload.notes || `Armá un recorrido para ${payload.title}.`;
 
-  return `${customizationPrompt}\n\nLa lista de prioridades es:\n${priorityText}`;
+  return `${notes}\n\nLugares priorizados por el usuario para que el LLM los considere al armar el plan final:\n${priorityText}`;
 }

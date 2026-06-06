@@ -174,7 +174,6 @@ export async function resolveDestination(
   query: string,
 ): Promise<DestinationCandidate | null> {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error(`No API Key`);
   const body = {
     textQuery: query,
   };

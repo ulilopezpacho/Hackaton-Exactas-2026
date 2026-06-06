@@ -55,7 +55,7 @@ export type TripDto = {
   title: string;
   travelCompletedAt: string | null;
   travelStartedAt: string | null;
-  travelStatus: "planned" | "ongoing" | "completed";
+  travelStatus: "planned" | "generating" | "ongoing" | "completed";
 };
 
 function formatDateLabel(value: string, timezone: string) {

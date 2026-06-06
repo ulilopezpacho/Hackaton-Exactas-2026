@@ -31,7 +31,7 @@ export default async function PlacesPage({ searchParams }: PlacesPageProps) {
     <PageShell eyebrow="Wishlist" title="Creá tu lista de prioridades">
       {error ? (
         <p className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          No pudimos guardar el itinerario tentativo. Probá de nuevo.
+          No pudimos guardar el contexto para generar el viaje. Probá de nuevo.
         </p>
       ) : null}
       <TripPlacesForm

@@ -1,4 +1,9 @@
-export type TripStatus = "draft" | "ongoing" | "upcoming" | "completed";
+export type TripStatus =
+  | "completed"
+  | "draft"
+  | "generating"
+  | "ongoing"
+  | "upcoming";
 
 export type TripOverview = {
   city: string;
