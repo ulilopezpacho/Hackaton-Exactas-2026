@@ -1,4 +1,13 @@
+import "@fontsource/public-sans/400.css";
+import "@fontsource/public-sans/500.css";
+import "@fontsource/public-sans/600.css";
+import "@fontsource/public-sans/700.css";
+import "@fontsource/spectral/500.css";
+import "@fontsource/spectral/600.css";
+import "@fontsource/spectral/700.css";
+
 import type { Metadata } from "next";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -13,7 +22,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }

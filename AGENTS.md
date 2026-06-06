@@ -4,6 +4,12 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Project tooling
+
+- Supabase CLI is installed as a dev dependency. Use `npx supabase ...` instead of assuming a global `supabase` binary exists.
+- For remote Supabase migrations, use the authenticated Supabase connector/MCP to apply SQL directly. Do not run `supabase login`, do not link via keychain-backed auth, and do not require a global CLI session.
+- After applying a remote migration through the connector, list remote migrations and name the local migration file with the exact remote version/name before committing.
+
 ## Project routing decisions
 
 - Use normal visible route segments for the main product areas:
@@ -15,6 +21,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
   - anonymous users go to `/auth/login`.
 - Keep the mock split into real Next pages so teammates can work independently:
   - `/app`
+  - `/app/onboarding`
   - `/app/trips`
   - `/app/trips/new/destination`
   - `/app/trips/new/places`
@@ -46,6 +53,11 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/auth/sign-up`: functional Supabase email/password signup.
 - `/auth/callback`: functional Supabase auth-code exchange.
 - `/app/layout.tsx`: functional private shell; protects `/app/...` routes and provides logout.
+- `/app/trips/[tripId]`: functional Supabase-backed trip summary.
+- `/app/trips/[tripId]/itinerary`: functional Supabase-backed itinerary and map.
+- `/app/trips/[tripId]/itinerary/[dayNumber]`: functional day detail.
+- `/app/onboarding`: functional required preferences onboarding.
+- `/app/profile/preferences`: functional saved preferences editor.
 
 ### Mocked
 
@@ -55,10 +67,6 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/new/places`: mocked wishlist, suggestions, and activity ordering.
 - `/app/trips/new/preferences`: mocked trip preference selection.
 - `/app/trips/new/generating`: mocked AI generation progress.
-- `/app/trips/[tripId]`: mocked trip summary/navigation.
-- `/app/trips/[tripId]/itinerary`: mocked itinerary list and map panel.
-- `/app/trips/[tripId]/itinerary/[dayNumber]`: mocked day detail.
 - `/app/trips/[tripId]/travel`: mocked travel mode and replanning actions.
 - `/app/trips/[tripId]/settings`: mocked trip settings.
-- `/app/profile`: partially functional session read, mocked profile data beyond email/id.
-- `/app/profile/preferences`: mocked saved preferences.
+- `/app/profile`: partially functional session read and saved preferences summary.
