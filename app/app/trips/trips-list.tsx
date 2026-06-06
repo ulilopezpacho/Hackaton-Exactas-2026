@@ -16,22 +16,10 @@ import {
   CardDescription,
   CardTitle,
 } from "@/components/ui/card";
+import type { TripOverview, TripStatus } from "@/lib/trips/overview-types";
 import { cn } from "@/lib/utils";
 
-export type TripStatus = "draft" | "upcoming" | "completed";
 type TripFilter = "all" | TripStatus;
-
-export type Trip = {
-  city: string;
-  country: string;
-  dates: string;
-  days: string;
-  href: string;
-  places: string;
-  stripeClass: string;
-  status: TripStatus;
-  tone: string;
-};
 
 const statusCopy: Record<
   TripStatus,
@@ -72,7 +60,7 @@ function formatCount(count: number, filter: TripFilter) {
   return `${count} ${count === 1 ? "viaje" : "viajes"}`;
 }
 
-export function TripsList({ trips }: { trips: Trip[] }) {
+export function TripsList({ trips }: { trips: TripOverview[] }) {
   const [activeFilter, setActiveFilter] = useState<TripFilter>("all");
   const visibleTrips = activeFilter === "all"
     ? trips
@@ -107,7 +95,21 @@ export function TripsList({ trips }: { trips: Trip[] }) {
             </p>
           </div>
 
-          {visibleTrips.map((trip) => {
+          {visibleTrips.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col gap-3 p-6">
+                <CardTitle className="text-2xl">Todavía no hay viajes</CardTitle>
+                <CardDescription>
+                  Creá tu primer viaje para empezar a guardar lugares e itinerarios.
+                </CardDescription>
+                <div>
+                  <Button className="rounded-full" render={<Link href="/app/trips/new/destination" />}>
+                    Crear viaje
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : visibleTrips.map((trip) => {
             const status = statusCopy[trip.status];
             const isDraft = trip.status === "draft";
 

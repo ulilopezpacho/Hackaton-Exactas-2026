@@ -20,22 +20,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-const nextTrip = {
-  city: "Madrid",
-  country: "España",
-  dates: "12 - 14 jun",
-  days: "3 días",
-  places: "5 lugares guardados",
-  version: "Itinerario equilibrado",
-  href: "/app/trips/madrid",
-};
-
-const stats = [
-  { label: "Viajes", value: "2" },
-  { label: "Borradores", value: "1" },
-  { label: "Lugares", value: "9" },
-];
+import { getTripsOverview } from "@/lib/trips/overview";
 
 const shortcuts = [
   {
@@ -58,13 +43,22 @@ const shortcuts = [
   },
 ];
 
-const activity = [
-  ["Madrid", "Se agregó Mercado de San Miguel al Día 1", "hace 12 min"],
-  ["Lisboa", "Itinerario de 4 días listo para revisar", "ayer"],
-  ["Perfil", "Preferencias de comida actualizadas", "vie 5 jun"],
-];
+function formatUpdatedAt(value: string) {
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "numeric",
+    month: "short",
+    timeZone: "America/Argentina/Buenos_Aires",
+  }).format(new Date(value)).replace(".", "");
+}
 
-export default function HomePage() {
+export default async function HomePage() {
+  const { recentTrips, stats, upcomingTrip } = await getTripsOverview();
+  const statCards = [
+    { label: "Viajes", value: String(stats.trips) },
+    { label: "Borradores", value: String(stats.drafts) },
+    { label: "Lugares", value: String(stats.places) },
+  ];
+
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 py-8">
       <div className="grid gap-5 lg:grid-cols-[1fr_19rem]">
@@ -105,7 +99,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="grid gap-3 p-4 sm:grid-cols-3">
-            {stats.map((stat) => (
+            {statCards.map((stat) => (
               <div
                 className="rounded-xl border border-border bg-background/70 px-4 py-3"
                 key={stat.label}
@@ -118,36 +112,57 @@ export default function HomePage() {
         </div>
 
         <Card>
-          <CardHeader>
-            <Badge className="w-fit rounded-md bg-accent text-accent-foreground" variant="secondary">
-              Próximo viaje
-            </Badge>
-            <CardTitle className="text-3xl">{nextTrip.city}</CardTitle>
-            <CardDescription>
-              {nextTrip.country} · {nextTrip.version}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-5">
-            <div className="grid gap-3 text-sm text-muted-foreground">
-              <div className="flex items-center gap-3">
-                <CalendarDaysIcon className="size-4" />
-                <span>{nextTrip.dates}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <ClockIcon className="size-4" />
-                <span>{nextTrip.days}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <MapPinnedIcon className="size-4" />
-                <span>{nextTrip.places}</span>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button className="rounded-full" render={<Link href={nextTrip.href} />}>
-                Abrir
-              </Button>
-            </div>
-          </CardContent>
+          {upcomingTrip ? (
+            <>
+              <CardHeader>
+                <Badge className="w-fit rounded-md bg-accent text-accent-foreground" variant="secondary">
+                  Próximo viaje
+                </Badge>
+                <CardTitle className="text-3xl">{upcomingTrip.city}</CardTitle>
+                <CardDescription>
+                  {upcomingTrip.country} · {upcomingTrip.tone}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-5">
+                <div className="grid gap-3 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-3">
+                    <CalendarDaysIcon className="size-4" />
+                    <span>{upcomingTrip.dates}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <ClockIcon className="size-4" />
+                    <span>{upcomingTrip.days}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <MapPinnedIcon className="size-4" />
+                    <span>{upcomingTrip.places}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button className="rounded-full" render={<Link href={upcomingTrip.href} />}>
+                    Abrir
+                  </Button>
+                </div>
+              </CardContent>
+            </>
+          ) : (
+            <>
+              <CardHeader>
+                <Badge className="w-fit rounded-md bg-accent text-accent-foreground" variant="secondary">
+                  Próximo viaje
+                </Badge>
+                <CardTitle className="text-3xl">Sin viajes próximos</CardTitle>
+                <CardDescription>
+                  Cuando tengas un itinerario activo, va a aparecer acá.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="rounded-full" render={<Link href="/app/trips/new/destination" />}>
+                  Crear viaje
+                </Button>
+              </CardContent>
+            </>
+          )}
         </Card>
       </div>
 
@@ -189,13 +204,17 @@ export default function HomePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4">
-            {activity.map(([scope, detail, time]) => (
-              <div className="grid gap-1 border-b pb-4 last:border-b-0 last:pb-0" key={detail}>
+            {recentTrips.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Todavía no hay viajes para mostrar.
+              </p>
+            ) : recentTrips.map((trip) => (
+              <div className="grid gap-1 border-b pb-4 last:border-b-0 last:pb-0" key={trip.id}>
                 <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold">{scope}</p>
-                  <time className="text-xs text-muted-foreground">{time}</time>
+                  <p className="text-sm font-semibold">{trip.city}</p>
+                  <time className="text-xs text-muted-foreground">{formatUpdatedAt(trip.updatedAt)}</time>
                 </div>
-                <p className="text-sm text-muted-foreground">{detail}</p>
+                <p className="text-sm text-muted-foreground">{trip.tone}</p>
               </div>
             ))}
           </CardContent>
