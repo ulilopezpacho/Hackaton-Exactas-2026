@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { solve } from "./solver";
+import { scorePlaces } from "@/lib/places/score";
+import type { PlaceForScoring, UserPreferencesForScoring } from "@/lib/places/score";
 import type {
   SolverInput,
   SolverPlace,
@@ -24,8 +26,13 @@ type AnySupabase = any;
 interface PlaceRow {
   id: string;
   name: string;
+  description: string | null;
   category: string | null;
   default_duration_minutes: number | null;
+  rating: number | null;
+  user_ratings_total: number | null;
+  quality_score: number | null;
+  popularity: number | null;
   location: unknown;
 }
 
@@ -46,17 +53,22 @@ export async function generateItinerary(
 
   const { data: trip, error: tripError } = await supabase
     .from("trips")
-    .select("starts_on, ends_on")
+    .select("starts_on, ends_on, owner_id, route_customization_prompt")
     .eq("id", tripId)
     .single();
   if (tripError || !trip) throw new Error(`Trip not found: ${tripId}`);
 
-  const tripData = trip as { starts_on: string; ends_on: string };
+  const tripData = trip as {
+    starts_on: string;
+    ends_on: string;
+    owner_id: string;
+    route_customization_prompt: string | null;
+  };
   const days = buildDays(tripData.starts_on, tripData.ends_on);
 
   const { data: placesRaw, error: placesError } = await supabase
     .from("places")
-    .select("id, name, category, default_duration_minutes, location")
+    .select("id, name, description, category, default_duration_minutes, rating, user_ratings_total, quality_score, popularity, location")
     .in("id", placeIds)
     .eq("status", "active");
   if (placesError) throw new Error(`Failed to fetch places: ${placesError.message}`);
@@ -107,7 +119,40 @@ export async function generateItinerary(
     }
   }
 
-  const orderedPlaces = placeIds
+  // --- Score places with Claude ---
+  const { data: userPrefs } = await supabase
+    .from("user_preferences")
+    .select("interests, pace, budget, travel_style_prompt")
+    .eq("user_id", tripData.owner_id)
+    .maybeSingle();
+
+  const prefsForScoring: UserPreferencesForScoring = {
+    interests: (userPrefs?.interests as string[]) ?? [],
+    pace: (userPrefs?.pace as string) ?? null,
+    budget: (userPrefs?.budget as string) ?? null,
+    travelStylePrompt: (userPrefs?.travel_style_prompt as string) ?? null,
+  };
+
+  const placesForScoring: PlaceForScoring[] = placeRows.map((p) => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    category: p.category,
+    rating: p.rating,
+    userRatingsTotal: p.user_ratings_total,
+    qualityScore: p.quality_score,
+    popularity: p.popularity,
+  }));
+
+  const scored = await scorePlaces({
+    places: placesForScoring,
+    userPreferences: prefsForScoring,
+    tripCustomizationPrompt: tripData.route_customization_prompt ?? undefined,
+  });
+
+  const top15Ids = scored.slice(0, 15).map((s) => s.id);
+
+  const orderedPlaces = top15Ids
     .map((id) => places.find((p) => p.id === id))
     .filter((p): p is SolverPlace => p != null);
 
