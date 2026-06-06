@@ -130,6 +130,16 @@ function buildFullSchedule(
     if (mealCounts[id] > 1) score -= (mealCounts[id] - 1) * 50;
   }
 
+  // Penalize unbalanced day distribution (squared deviation from mean)
+  if (days.length > 1 && placesAssigned > 0) {
+    const avg = placesAssigned / days.length;
+    let balancePenalty = 0;
+    for (const dayPlaces of dayPlaceLists) {
+      balancePenalty += (dayPlaces.length - avg) ** 2;
+    }
+    score -= Math.round(balancePenalty * 150);
+  }
+
   return { days: resultDays, score, unplacedPlaces: skipped };
 }
 
@@ -265,8 +275,22 @@ function scheduleDayInOrder(
     lastPlaceId = place.id;
   }
 
-  // Final meal check
-  if (currentTime - lastMealTime >= config.mealIntervalMinutes) {
+  // Fill remaining day with meals at regular intervals
+  while (config.dayEndTime - currentTime >= 30) {
+    const nextMealDue = lastMealTime + config.mealIntervalMinutes;
+    if (nextMealDue >= config.dayEndTime) break;
+
+    if (currentTime < nextMealDue) {
+      items.push({
+        type: "recommendation",
+        placeId: null,
+        title: "Tiempo libre",
+        startMinute: currentTime,
+        endMinute: nextMealDue,
+      });
+      currentTime = nextMealDue;
+    }
+
     const mealResult = insertMealPlace(
       items,
       currentTime,
@@ -277,11 +301,13 @@ function scheduleDayInOrder(
       config,
       [...globalUsedMealIds, ...mealIdsUsed]
     );
-    if (mealResult) {
-      currentTime = mealResult.newTime;
-      totalTravel += mealResult.travelMinutes;
-      if (mealResult.mealPlaceId) mealIdsUsed.push(mealResult.mealPlaceId);
-    }
+    if (!mealResult) break;
+
+    currentTime = mealResult.newTime;
+    lastMealTime = currentTime;
+    lastPlaceId = mealResult.lastPlaceId;
+    totalTravel += mealResult.travelMinutes;
+    if (mealResult.mealPlaceId) mealIdsUsed.push(mealResult.mealPlaceId);
   }
 
   if (currentTime < config.dayEndTime) {

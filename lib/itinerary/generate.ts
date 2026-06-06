@@ -130,7 +130,7 @@ export async function generateItinerary(
 
 // --- Helpers ---
 
-function buildDays(startsOn: string, endsOn: string): SolverDay[] {
+export function buildDays(startsOn: string, endsOn: string): SolverDay[] {
   const days: SolverDay[] = [];
   const start = new Date(startsOn + "T00:00:00");
   const end = new Date(endsOn + "T00:00:00");
