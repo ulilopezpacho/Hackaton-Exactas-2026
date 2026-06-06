@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import {
-  ArrowRightIcon,
   CalendarDaysIcon,
   ClockIcon,
   MapIcon,
@@ -23,7 +22,6 @@ export type TripStatus = "draft" | "upcoming" | "completed";
 type TripFilter = "all" | TripStatus;
 
 export type Trip = {
-  actionHref: string;
   city: string;
   country: string;
   dates: string;
@@ -38,23 +36,19 @@ export type Trip = {
 const statusCopy: Record<
   TripStatus,
   {
-    action: string;
     label: string;
     tone: string;
   }
 > = {
   completed: {
-    action: "Ver itinerario",
     label: "Completado",
     tone: "text-muted-foreground",
   },
   draft: {
-    action: "Seguir armando",
     label: "Borrador",
     tone: "bg-muted text-muted-foreground",
   },
   upcoming: {
-    action: "Ver itinerario",
     label: "Próximo",
     tone: "border-border text-foreground",
   },
@@ -166,10 +160,6 @@ export function TripsList({ trips }: { trips: Trip[] }) {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <Button className="rounded-full" render={<Link href={trip.actionHref} />} size="sm" variant="ghost">
-                        {status.action}
-                        <ArrowRightIcon data-icon="inline-end" />
-                      </Button>
                       <Button className="rounded-full" render={<Link href={trip.href} />} size="sm" variant={isDraft ? "ghost" : "outline"}>
                         Abrir
                       </Button>

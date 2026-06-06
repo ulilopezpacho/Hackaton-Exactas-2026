@@ -7,7 +7,6 @@ import { TripsList, type Trip } from "./trips-list";
 
 const trips: Trip[] = [
   {
-    actionHref: "/app/trips/lisboa/itinerary",
     city: "Lisboa",
     country: "Portugal",
     dates: "mar 2026",
@@ -19,7 +18,6 @@ const trips: Trip[] = [
     tone: "Miradores, barrios y ritmo tranquilo",
   },
   {
-    actionHref: "/app/trips/bariloche/itinerary",
     city: "Bariloche",
     country: "Argentina",
     dates: "ago 2026",
@@ -31,7 +29,6 @@ const trips: Trip[] = [
     tone: "Lagos, senderos y chocolate",
   },
   {
-    actionHref: "/app/trips/new/places",
     city: "Madrid",
     country: "España",
     dates: "12 - 14 jun",

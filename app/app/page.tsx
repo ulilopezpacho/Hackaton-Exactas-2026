@@ -29,7 +29,6 @@ const nextTrip = {
   places: "5 lugares guardados",
   version: "Itinerario equilibrado",
   href: "/app/trips/madrid",
-  itineraryHref: "/app/trips/madrid/itinerary",
 };
 
 const stats = [
@@ -144,10 +143,7 @@ export default function HomePage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button className="rounded-full" render={<Link href={nextTrip.itineraryHref} />}>
-                Ver itinerario
-              </Button>
-              <Button className="rounded-full" render={<Link href={nextTrip.href} />} variant="outline">
+              <Button className="rounded-full" render={<Link href={nextTrip.href} />}>
                 Abrir
               </Button>
             </div>
