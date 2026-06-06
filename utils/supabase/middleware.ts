@@ -33,5 +33,34 @@ export async function updateSession(request: NextRequest) {
 
   await supabase.auth.getClaims();
 
+  if (
+    request.nextUrl.pathname.startsWith("/app")
+    && request.nextUrl.pathname !== "/app/onboarding"
+  ) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data } = await supabase
+        .from("user_preferences")
+        .select("onboarding_completed_at")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!data?.onboarding_completed_at) {
+        const redirectResponse = NextResponse.redirect(
+          new URL("/app/onboarding", request.url),
+        );
+
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          redirectResponse.cookies.set(cookie);
+        });
+
+        return redirectResponse;
+      }
+    }
+  }
+
   return supabaseResponse;
 }

@@ -52,7 +52,6 @@ export type Database = {
           trip_id: string;
         };
         Insert: {
-          created_at?: string;
           day_number?: number;
           generated_from_itinerary_id?: string | null;
           generation_prompt?: string | null;
@@ -132,17 +131,21 @@ export type Database = {
       };
       user_preferences: {
         Row: TimestampColumns & {
-          budget: string | null;
+          budget: "under_50" | "50_100" | "100_200" | "over_200" | null;
           interests: string[];
-          pace: string | null;
+          onboarding_completed_at: string | null;
+          onboarding_step: "interests" | "pace" | "prompt" | "budget" | "complete";
+          pace: "relaxed" | "balanced" | "intense" | null;
           travel_style_prompt: string | null;
           user_id: string;
         };
         Insert: {
-          budget?: string | null;
+          budget?: "under_50" | "50_100" | "100_200" | "over_200" | null;
           created_at?: string;
           interests?: string[];
-          pace?: string | null;
+          onboarding_completed_at?: string | null;
+          onboarding_step?: "interests" | "pace" | "prompt" | "budget" | "complete";
+          pace?: "relaxed" | "balanced" | "intense" | null;
           travel_style_prompt?: string | null;
           updated_at?: string;
           user_id: string;

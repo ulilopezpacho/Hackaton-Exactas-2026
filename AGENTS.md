@@ -4,19 +4,11 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-## Windows development rules
+## Project tooling
 
-This repository is developed on Windows with PowerShell. Follow these rules to avoid known environment-specific failures:
-
-- Run package scripts with `npm.cmd`, not `npm`. PowerShell may block `npm.ps1` when script execution is disabled. Examples: `npm.cmd run lint`, `npm.cmd run build`, and `npm.cmd run dev`.
-- Use `-LiteralPath` when reading or operating on Next.js dynamic-route files such as `app/app/trips/[tripId]/page.tsx`. PowerShell treats square brackets in `-Path` values as wildcard expressions.
-- Explicitly use UTF-8 when reading text in PowerShell: `Get-Content -LiteralPath <file> -Encoding UTF8`. Do not diagnose mojibake from default PowerShell output alone; verify the file with explicit UTF-8 decoding before editing.
-- Use `apply_patch` for source edits. Do not rewrite UTF-8 source files through PowerShell pipelines or default-encoding output commands, because these can corrupt Spanish characters such as `í`, `ó`, and `·`.
-- Prefer `rg` for searches. Quote paths and patterns when they contain brackets, parentheses, pipes, or other PowerShell metacharacters.
-- In PowerShell, assign `foreach` output to a variable before piping it. Use `$results = foreach (...) { ... }; $results | ConvertTo-Json` instead of piping directly from a `foreach` statement.
-- If the Node REPL or in-app browser fails with `windows sandbox failed: spawn setup refresh`, treat it as a tooling sandbox failure, not an application failure. Continue with shell-based checks where possible and report that visual browser verification could not run.
-- Before starting another development server, inspect the existing process or port. Next.js may already be running and a second `next dev` will fail due to the occupied port or development lock.
-- Public Supabase URL and publishable keys cannot apply migrations, seed `auth.users`, generate remote types, or run database advisors. Those operations require an authenticated Supabase MCP/CLI session, a database connection, or manual execution in the Supabase SQL Editor.
+- Supabase CLI is installed as a dev dependency. Use `npx supabase ...` instead of assuming a global `supabase` binary exists.
+- For remote Supabase migrations, use the authenticated Supabase connector/MCP to apply SQL directly. Do not run `supabase login`, do not link via keychain-backed auth, and do not require a global CLI session.
+- After applying a remote migration through the connector, list remote migrations and name the local migration file with the exact remote version/name before committing.
 
 ## Project routing decisions
 
@@ -29,6 +21,7 @@ This repository is developed on Windows with PowerShell. Follow these rules to a
   - anonymous users go to `/auth/login`.
 - Keep the mock split into real Next pages so teammates can work independently:
   - `/app`
+  - `/app/onboarding`
   - `/app/trips`
   - `/app/trips/new/destination`
   - `/app/trips/new/places`
@@ -63,6 +56,8 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/[tripId]`: functional Supabase-backed trip summary.
 - `/app/trips/[tripId]/itinerary`: functional Supabase-backed itinerary and map.
 - `/app/trips/[tripId]/itinerary/[dayNumber]`: functional day detail.
+- `/app/onboarding`: functional required preferences onboarding.
+- `/app/profile/preferences`: functional saved preferences editor.
 
 ### Mocked
 
@@ -74,5 +69,4 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/new/generating`: mocked AI generation progress.
 - `/app/trips/[tripId]/travel`: mocked travel mode and replanning actions.
 - `/app/trips/[tripId]/settings`: mocked trip settings.
-- `/app/profile`: partially functional session read, mocked profile data beyond email/id.
-- `/app/profile/preferences`: mocked saved preferences.
+- `/app/profile`: partially functional session read and saved preferences summary.
