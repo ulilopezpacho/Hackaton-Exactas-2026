@@ -1,5 +1,6 @@
 import { createAnthropicClient } from "../ai/anthropic";
 import { searchPlaces, type PlaceCandidate } from "./google";
+import { buildCuratedPlaces, type CuratedPlace } from "./catalog";
 import type {
   TextBlock,
   ToolUseBlock,
@@ -7,24 +8,7 @@ import type {
   Tool,
 } from "@anthropic-ai/sdk/resources/messages.mjs";
 
-export interface CuratedPlace {
-  name: string;
-  description: string;
-  category: string;
-  address: string;
-  externalId: string;
-  lat: number;
-  lng: number;
-  defaultDurationMinutes?: number;
-  // Metadata joined back from Google Places API
-  primaryType?: string;
-  types?: string[];
-  summary?: string;
-  rating?: number;
-  userRatingsTotal?: number;
-  qualityScore?: number;
-  popularity?: number;
-}
+export type { CuratedPlace } from "./catalog";
 
 export interface GeneratePlacesInput {
   destination: string;
@@ -37,41 +21,6 @@ export interface GeneratePlacesInput {
   travelStylePrompt?: string;
   lat: number;
   lng: number;
-}
-
-/**
- * Bayesian shrinkage average for quality_score.
- * quality_score = (v / (v + m)) * R + (m / (v + m)) * C
- * R = avg rating, v = review count, C = mean rating (~3.5), m = confidence threshold (~50)
- */
-function computeQualityScore(rating?: number, total?: number): number | undefined {
-  if (rating === undefined || total === undefined) return undefined;
-  const m = 50;
-  const C = 3.5;
-  return (total / (total + m)) * rating + (m / (total + m)) * C;
-}
-
-/**
- * Log-dampened popularity score.
- * popularity = log10(user_ratings_total + 1)
- */
-function computePopularity(total?: number): number | undefined {
-  if (total === undefined) return undefined;
-  return Math.log10(total + 1);
-}
-
-/**
- * Normalizes a place name for fuzzy matching: lowercased, diacritics stripped,
- * non-alphanumerics removed. Used to recover metadata when the model returns a
- * mangled externalId but a recognizable name.
- */
-function normalizeName(name?: string): string {
-  if (!name) return "";
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]/g, "");
 }
 
 export async function generatePlaces(
@@ -263,46 +212,14 @@ Instructions:
         } else if (block.name === "save_places") {
           const rawSelection = (block.input as { places: CuratedPlace[] }).places;
 
-          // The model sometimes returns a mangled/invented externalId, which would
-          // miss the metadata join entirely. Fall back to matching by normalized
-          // name so we recover real selections, and drop anything that matches no
-          // searched result (it can't be a real, persistable place anyway).
-          const byName = new Map<string, PlaceCandidate>();
-          for (const candidate of allFoundPlaces.values()) {
-            const key = normalizeName(candidate.name);
-            if (key && !byName.has(key)) byName.set(key, candidate);
-          }
-
-          const dropped: string[] = [];
-          curatedPlaces = [];
-          for (const p of rawSelection) {
-            const meta =
-              allFoundPlaces.get(p.externalId?.trim()) ??
-              byName.get(normalizeName(p.name));
-
-            if (!meta) {
-              dropped.push(`${p.name} (${p.externalId})`);
-              continue;
-            }
-
-            // Cached Google candidate is the source of truth for identity and
-            // metadata; keep the model's curation (description/category/duration).
-            curatedPlaces.push({
-              ...p,
-              externalId: meta.externalId,
-              name: meta.name || p.name,
-              address: meta.address || p.address,
-              lat: meta.lat ?? p.lat,
-              lng: meta.lng ?? p.lng,
-              primaryType: meta.primaryType,
-              types: meta.types,
-              summary: meta.summary,
-              rating: meta.rating,
-              userRatingsTotal: meta.userRatingsTotal,
-              qualityScore: computeQualityScore(meta.rating, meta.userRatingsTotal),
-              popularity: computePopularity(meta.userRatingsTotal),
-            });
-          }
+          // The model sometimes returns a mangled/invented externalId; the join
+          // recovers real picks by name and drops anything unmatched. See
+          // buildCuratedPlaces.
+          const { curated, dropped } = buildCuratedPlaces(
+            rawSelection,
+            allFoundPlaces,
+          );
+          curatedPlaces = curated;
 
           console.log(
             `[generatePlaces] save_places -> ${rawSelection.length} rows submitted, ${curatedPlaces.length} kept, ${dropped.length} dropped.`,
