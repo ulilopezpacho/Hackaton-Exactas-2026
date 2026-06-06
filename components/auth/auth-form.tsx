@@ -49,7 +49,7 @@ export function AuthForm({
                 autoComplete="email"
                 className="h-11"
                 name="email"
-                placeholder="uli@example.com"
+                placeholder="email@example.com"
                 required
                 type="email"
               />
