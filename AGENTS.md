@@ -70,3 +70,24 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/[tripId]/travel`: mocked travel mode and replanning actions.
 - `/app/trips/[tripId]/settings`: mocked trip settings.
 - `/app/profile`: partially functional session read and saved preferences summary.
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4, Vanilla CSS
+- **Components**: Shadcn UI, Base UI, Lucide Icons
+- **Backend**: Supabase (PostgreSQL, Auth, SSR)
+- **AI**: Anthropic SDK (Claude models)
+
+## Agent Guidelines
+
+- **Skills**: This project uses specialized skills in `.agents/skills/`. Activate relevant skills before starting tasks (e.g., `activate_skill("supabase")`).
+- **Memory**: 
+  - Gemini: Use the private memory folder for local notes.
+  - Claude: Use `.claude/` for internal state.
+- **Workflow**: 
+  - Always research the current implementation status before starting.
+  - For new features, update the "Page implementation status" in this file.
+  - Follow the Plan -> Act -> Validate cycle.
+  - Verify changes by running `npm run lint` and relevant tests.
