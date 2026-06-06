@@ -150,11 +150,14 @@ export async function generateItinerary(
     tripCustomizationPrompt: tripData.route_customization_prompt ?? undefined,
   });
 
-  const top15Ids = scored.slice(0, 15).map((s) => s.id);
+  const top15 = scored.slice(0, 15);
+  const scoresByPlaceId = new Map(scored.map((s) => [s.id, s.score]));
 
-  const orderedPlaces = top15Ids
-    .map((id) => places.find((p) => p.id === id))
-    .filter((p): p is SolverPlace => p != null);
+  const orderedPlaces: SolverPlace[] = [];
+  for (const s of top15) {
+    const p = places.find((pl) => pl.id === s.id);
+    if (p) orderedPlaces.push({ ...p, score: s.score });
+  }
 
   const travelMatrix = buildTravelMatrix(placeRows);
 
@@ -168,7 +171,7 @@ export async function generateItinerary(
 
   const result = solve(input);
 
-  await writeToSupabase(supabase, tripId, result, days);
+  await writeToSupabase(supabase, tripId, result, days, scoresByPlaceId);
 
   return result;
 }
@@ -269,7 +272,8 @@ async function writeToSupabase(
   supabase: AnySupabase,
   tripId: string,
   result: SolverResult,
-  days: SolverDay[]
+  days: SolverDay[],
+  scoresByPlaceId: Map<string, number>
 ) {
   for (const daySchedule of result.days) {
     const { data: itinerary, error: itinError } = await supabase
@@ -298,6 +302,7 @@ async function writeToSupabase(
       starts_at: `${dayDate}T${minutesToTime(item.startMinute)}:00`,
       ends_at: `${dayDate}T${minutesToTime(item.endMinute)}:00`,
       position,
+      score: item.placeId ? scoresByPlaceId.get(item.placeId) ?? null : null,
     }));
 
     if (itemRows.length > 0) {
