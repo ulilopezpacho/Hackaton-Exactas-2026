@@ -7,7 +7,6 @@ import "@fontsource/spectral/600.css";
 import "@fontsource/spectral/700.css";
 
 import type { Metadata } from "next";
-
 import "./globals.css";
 
 export const metadata: Metadata = {

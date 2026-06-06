@@ -1,54 +1,29 @@
 import Link from "next/link";
-import { ArrowRightIcon, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 
-import { PageShell } from "@/components/app/page-shell";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { getTripsOverview } from "@/lib/trips/overview";
 
-export default function TripsPage() {
+import { TripsList } from "./trips-list";
+
+export default async function TripsPage() {
+  const { trips } = await getTripsOverview();
+
   return (
-    <PageShell
-      actions={
-        <Button render={<Link href="/app/trips/new/destination" />}>
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-heading text-4xl font-semibold tracking-normal">
+            Mis viajes
+          </h1>
+        </div>
+        <Button className="h-10 rounded-full px-5" render={<Link href="/app/trips/new/destination" />}>
           <PlusIcon data-icon="inline-start" />
           Nuevo viaje
         </Button>
-      }
-      eyebrow="Home del mock"
-      title="Tus viajes"
-    >
-      <div className="grid gap-4 md:grid-cols-2">
-        <Link href="/app/trips/new/places">
-          <Card className="h-full transition hover:ring-primary/40">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <CardTitle>Madrid</CardTitle>
-                <Badge variant="secondary">Borrador</Badge>
-              </div>
-              <CardDescription>12 - 14 jun · 5 lugares</CardDescription>
-            </CardHeader>
-            <CardContent className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
-              Seguir armando <ArrowRightIcon className="size-4" />
-            </CardContent>
-          </Card>
-        </Link>
-        <Card className="opacity-80">
-          <CardHeader>
-            <CardTitle>Lisboa</CardTitle>
-            <CardDescription>mar 2026 · 4 días</CardDescription>
-          </CardHeader>
-          <CardContent className="text-sm font-medium text-muted-foreground">
-            Completado
-          </CardContent>
-        </Card>
       </div>
-    </PageShell>
+
+      <TripsList trips={trips} />
+    </section>
   );
 }

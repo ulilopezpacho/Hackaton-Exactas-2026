@@ -53,6 +53,8 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/auth/sign-up`: functional Supabase email/password signup.
 - `/auth/callback`: functional Supabase auth-code exchange.
 - `/app/layout.tsx`: functional private shell; protects `/app/...` routes and provides logout.
+- `/app`: functional Supabase-backed private home/dashboard cards.
+- `/app/trips`: functional Supabase-backed trip list.
 - `/app/trips/[tripId]`: functional Supabase-backed trip summary.
 - `/app/trips/[tripId]/itinerary`: functional Supabase-backed itinerary and map.
 - `/app/trips/[tripId]/itinerary/[dayNumber]`: functional day detail.
@@ -62,8 +64,6 @@ Use this list as the source of truth when replacing mock pages with functional p
 
 ### Mocked
 
-- `/app`: mocked private home/dashboard cards.
-- `/app/trips`: mocked trip list.
 - `/app/trips/new/destination`: mocked destination and date selection.
 - `/app/trips/new/places`: mocked wishlist, suggestions, and activity ordering.
 - `/app/trips/new/preferences`: mocked trip preference selection.

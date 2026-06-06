@@ -4,7 +4,7 @@ import { createClient } from "@/utils/supabase/server";
 
 export async function POST(
   _request: Request,
-  { params }: RouteContext<"/api/trips/[tripId]/save">,
+  { params }: { params: Promise<{ tripId: string }> },
 ) {
   const { tripId } = await params;
   const supabase = await createClient();
