@@ -108,7 +108,7 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
     .from("itineraries")
     .select("id,day_number,title,status")
     .eq("trip_id", trip.id)
-    .eq("status", "active")
+    .in("status", ["active", "draft"])
     .order("day_number");
 
   if (itineraryError) {

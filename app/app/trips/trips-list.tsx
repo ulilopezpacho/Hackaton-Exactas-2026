@@ -103,7 +103,11 @@ export function TripsList({ trips }: { trips: TripOverview[] }) {
                   Creá tu primer viaje para empezar a guardar lugares e itinerarios.
                 </CardDescription>
                 <div>
-                  <Button className="rounded-full" render={<Link href="/app/trips/new/destination" />}>
+                  <Button
+                    className="rounded-full"
+                    nativeButton={false}
+                    render={<Link href="/app/trips/new/destination" />}
+                  >
                     Crear viaje
                   </Button>
                 </div>
@@ -119,7 +123,7 @@ export function TripsList({ trips }: { trips: TripOverview[] }) {
                   "transition [--card-spacing:0px] hover:-translate-y-0.5 hover:ring-primary/30",
                   isDraft && "bg-secondary/35 hover:ring-muted-foreground/20",
                 )}
-                key={trip.city}
+                key={trip.id}
               >
                 <CardContent className="grid p-0 sm:grid-cols-[7rem_1fr]">
                   <div
@@ -162,7 +166,13 @@ export function TripsList({ trips }: { trips: TripOverview[] }) {
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                      <Button className="rounded-full" render={<Link href={trip.href} />} size="sm" variant={isDraft ? "ghost" : "outline"}>
+                      <Button
+                        className="rounded-full"
+                        nativeButton={false}
+                        render={<Link href={trip.href} />}
+                        size="sm"
+                        variant={isDraft ? "ghost" : "outline"}
+                      >
                         Abrir
                       </Button>
                     </div>

@@ -55,6 +55,10 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/layout.tsx`: functional private shell; protects `/app/...` routes and provides logout.
 - `/app`: functional Supabase-backed private home/dashboard cards.
 - `/app/trips`: functional Supabase-backed trip list.
+- `/app/trips/new/destination`: functional trip draft creation.
+- `/app/trips/new/places`: functional place selection with Google Places/manual fallback.
+- `/app/trips/new/preferences`: redirects to `/app/trips/new/places` with inline preferences open.
+- `/app/trips/new/generating`: functional tentative itinerary handoff screen.
 - `/app/trips/[tripId]`: functional Supabase-backed trip summary.
 - `/app/trips/[tripId]/itinerary`: functional Supabase-backed itinerary and map.
 - `/app/trips/[tripId]/itinerary/[dayNumber]`: functional day detail.
@@ -64,10 +68,6 @@ Use this list as the source of truth when replacing mock pages with functional p
 
 ### Mocked
 
-- `/app/trips/new/destination`: mocked destination and date selection.
-- `/app/trips/new/places`: mocked wishlist, suggestions, and activity ordering.
-- `/app/trips/new/preferences`: mocked trip preference selection.
-- `/app/trips/new/generating`: mocked AI generation progress.
 - `/app/trips/[tripId]/travel`: mocked travel mode and replanning actions.
 - `/app/trips/[tripId]/settings`: mocked trip settings.
 - `/app/profile`: partially functional session read and saved preferences summary.
@@ -100,10 +100,10 @@ Use this list as the source of truth when replacing mock pages with functional p
 ## Agent Guidelines
 
 - **Skills**: This project uses specialized skills in `.agents/skills/`. Activate relevant skills before starting tasks (e.g., `activate_skill("supabase")`).
-- **Memory**: 
+- **Memory**:
   - Gemini: Use the private memory folder for local notes.
   - Claude: Use `.claude/` for internal state.
-- **Workflow**: 
+- **Workflow**:
   - Always research the current implementation status before starting.
   - For new features, update the "Page implementation status" in this file.
   - Follow the Plan -> Act -> Validate cycle.

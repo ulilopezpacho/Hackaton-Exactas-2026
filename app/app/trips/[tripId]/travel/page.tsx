@@ -26,7 +26,11 @@ export default async function TravelPage({ params }: TravelPageProps) {
   return (
     <PageShell
       actions={
-        <Button render={<Link href={`/app/trips/${tripId}/itinerary`} />} variant="outline">
+        <Button
+          nativeButton={false}
+          render={<Link href={`/app/trips/${tripId}/itinerary`} />}
+          variant="outline"
+        >
           <ArrowLeftIcon data-icon="inline-start" />
           Itinerario
         </Button>
