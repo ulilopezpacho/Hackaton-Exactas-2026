@@ -58,6 +58,7 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/[tripId]/itinerary/[dayNumber]`: functional day detail.
 - `/app/onboarding`: functional required preferences onboarding.
 - `/app/profile/preferences`: functional saved preferences editor.
+- `POST /api/trips/[tripId]/place-catalog`: functional one-shot destination and place catalog generation.
 
 ### Mocked
 
@@ -70,6 +71,22 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/[tripId]/travel`: mocked travel mode and replanning actions.
 - `/app/trips/[tripId]/settings`: mocked trip settings.
 - `/app/profile`: partially functional session read and saved preferences summary.
+
+## Internal Handlers & APIs
+
+### Places & Destination Logic (`lib/places/`)
+
+- **`google.ts`**: Core wrapper for Google Places API (New).
+  - `searchPlaces({ query, latBias, lngBias })`: Returns `PlaceCandidate[]`. Mocked if API key is missing.
+  - `resolveDestination(query)`: Resolves destination name to coordinates and administrative metadata.
+- **`generatePlaces(input)`**: Higher-level AI orchestrator. Uses Claude to curate 15-25 places matching user preferences and destination context.
+
+### Reusable API Endpoints
+
+- **`POST /api/trips/[tripId]/place-catalog`**:
+  - Populates a trip with its destination and a full curated place catalog in one call.
+  - Automatically fetches user preferences and resolves coordinates.
+  - Verification: `npx tsx scripts/verify-catalog-loop.ts <trip_id>`
 
 ## Tech Stack
 
