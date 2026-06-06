@@ -59,8 +59,8 @@ begin
     return source_trip.id;
   end if;
 
-  select item_record, itinerary_record
-  into source_item, source_itinerary
+  select item_record.*
+  into source_item
   from public.itinerary_items as item_record
   join public.itineraries as itinerary_record
     on itinerary_record.id = item_record.itinerary_id
@@ -78,6 +78,11 @@ begin
   if not found then
     raise exception 'The selected item is not a navigable point';
   end if;
+
+  select itinerary_record.*
+  into source_itinerary
+  from public.itineraries as itinerary_record
+  where itinerary_record.id = source_item.itinerary_id;
 
   if source_trip.owner_id = actor_id then
     update public.trips
