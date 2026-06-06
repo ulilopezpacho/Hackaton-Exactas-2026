@@ -116,7 +116,7 @@ function buildFullSchedule(
 
   for (let i = 0; i < places.length; i++) {
     if (dayAssignments[i] !== -1) {
-      score += (places.length - i) * 10;
+      score += places[i].score ?? (places.length - i) * 10;
     }
   }
 
