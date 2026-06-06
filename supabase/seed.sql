@@ -51,7 +51,7 @@ begin
   end if;
 
   insert into public.trips (
-    id, owner_id, title, country, timezone, starts_on, ends_on, visibility
+    id, owner_id, title, country, timezone, starts_on, ends_on, visibility, status
   )
   values (
     '10000000-0000-4000-8000-000000000001',
@@ -61,7 +61,8 @@ begin
     'Europe/Madrid',
     '2026-06-12',
     '2026-06-14',
-    'private'
+    'private',
+    'planned'
   )
   on conflict (id) do update set
     owner_id = excluded.owner_id,
@@ -71,6 +72,7 @@ begin
     starts_on = excluded.starts_on,
     ends_on = excluded.ends_on,
     visibility = excluded.visibility,
+    status = excluded.status,
     updated_at = now();
 
   insert into public.itineraries (

@@ -22,5 +22,7 @@ export default async function ItineraryDayPage({
     notFound();
   }
 
-  return <ItineraryExplorer selectedDay={selectedDay} trip={trip} />;
+  return (
+    <ItineraryExplorer immersive selectedDay={selectedDay} trip={trip} />
+  );
 }

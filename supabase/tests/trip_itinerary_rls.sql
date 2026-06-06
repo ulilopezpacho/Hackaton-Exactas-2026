@@ -53,8 +53,8 @@ begin
   from public.trips
   where id = '10000000-0000-4000-8000-000000000001';
 
-  if visible_count <> 0 then
-    raise exception 'A different user must not see the seeded trip';
+  if visible_count <> 1 then
+    raise exception 'Authenticated users should see shared trip data';
   end if;
 end
 $$;

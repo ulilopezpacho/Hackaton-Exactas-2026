@@ -25,6 +25,17 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=...
 NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=...
 ```
 
+El Map ID debe tener un estilo asociado en Google Maps Platform que oculte:
+
+- `Administrative > Labels`
+- `Points of interest > Labels`
+- `Transit > Labels`
+- `Road > Labels > Icons`
+
+Esto deja visibles las calles y los marcadores propios del itinerario, sin
+mostrar nombres de ciudades, barrios o lugares ajenos. Los estilos JSON
+configurados desde JavaScript no reemplazan el estilo cloud de un Map ID.
+
 Enable billing and Maps JavaScript API, then restrict the browser key to the
 application's HTTP referrers. Without these variables, the itinerary keeps
 working and shows a configuration placeholder in the map tab.

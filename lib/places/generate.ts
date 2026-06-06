@@ -50,12 +50,14 @@ Trip Context:
 - Style: ${input.travelStylePrompt || "Not specified"}
 
 Instructions:
-1. Use the "search_places" tool to find real places in the destination. You can call it multiple times with different queries based on the user's interests.
-2. Filter and curate the results to match the user's preferences and the trip's context.
-3. Estimate a "defaultDurationMinutes" for each place (how long a typical visitor spends there).
-4. Once you have a curated list of 15-25 unique places, call the "save_places" tool EXACTLY ONCE with the final list.
-5. Do not include duplicates. Ensure the externalId (Google Place ID) is preserved.
-6. Provide high-quality descriptions that explain why each place fits this specific trip.`;
+1. To be efficient, you SHOULD provide multiple "search_places" calls in a single response to cover different categories or interests (e.g., museums, restaurants, parks) simultaneously.
+2. Aim to find at least 30-40 candidate places across your searches so you can then filter them down to the best 15-25.
+3. Filter and curate the results to match the user's preferences and the trip's context perfectly.
+4. Estimate a "defaultDurationMinutes" for each place (how long a typical visitor spends there).
+5. Once you have a curated list of 15-25 unique places, call the "save_places" tool EXACTLY ONCE with the final list.
+6. Do not include duplicates. Ensure the externalId (Google Place ID) is preserved.
+7. Provide high-quality descriptions that explain why each place fits this specific trip.
+8. Efficiency is key: try to complete the entire curation in as few turns as possible (ideally 2-3 rounds).`;
 
   const messages: MessageParam[] = [
     {
@@ -119,92 +121,115 @@ Instructions:
   ];
 
   let stopReason: string | undefined;
+  let round = 0;
+  let saved = false;
 
-  while (stopReason !== "tool_use" || curatedPlaces.length === 0) {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5",
-      max_tokens: 4096,
-      system: systemPrompt,
-      tools,
-      messages,
-    });
+  while (round < 10 && !saved) {
+    round++;
+    const llmStartTime = Date.now();
+    console.log(`[generatePlaces] Round ${round}: Requesting LLM response...`);
+    
+    let response;
+    try {
+      response = await anthropic.messages.create({
+        model: "claude-haiku-4-5",
+        max_tokens: 4096,
+        system: systemPrompt,
+        tools,
+        messages,
+      });
+    } catch (error) {
+      console.error(`[generatePlaces] Error in Round ${round}:`, error);
+      if (curatedPlaces.length > 0) {
+        console.warn(`[generatePlaces] Returning ${curatedPlaces.length} partially generated places due to error.`);
+        return curatedPlaces;
+      }
+      throw error;
+    }
 
+    const llmDuration = Date.now() - llmStartTime;
     stopReason = response.stop_reason ?? undefined;
+    console.log(`[generatePlaces] Round ${round}: LLM responded in ${llmDuration}ms. Stop reason: ${stopReason}`);
+
     messages.push({
       role: "assistant",
       content: response.content as Array<TextBlock | ToolUseBlock>,
     });
 
-    if (stopReason === "tool_use") {
-      const toolResults: Array<{
-        type: "tool_result";
-        tool_use_id: string;
-        content: string;
-        is_error?: boolean;
-      }> = [];
-      let saved = false;
+    const toolUseBlocks = response.content.filter(block => block.type === "tool_use") as ToolUseBlock[];
+    
+    if (toolUseBlocks.length > 0) {
+      const toolStartTime = Date.now();
+      console.log(`[generatePlaces] Round ${round}: Processing ${toolUseBlocks.length} tool calls...`);
 
-      for (const block of response.content) {
-        if (block.type === "tool_use") {
-          console.log(`[Agent] Calling tool: ${block.name} (ID: ${block.id})`);
-          
-          if (block.name === "search_places") {
-            try {
-              const results = await searchPlaces({
-                query: (block.input as { query: string }).query,
-                latBias: input.lat,
-                lngBias: input.lng,
-              });
-              toolResults.push({
-                type: "tool_result",
-                tool_use_id: block.id,
-                content: JSON.stringify(results),
-              });
-            } catch (error) {
-              toolResults.push({
-                type: "tool_result",
-                tool_use_id: block.id,
-                content: `Error searching places: ${error instanceof Error ? error.message : String(error)}`,
-                is_error: true,
-              });
-            }
-          } else if (block.name === "save_places") {
-            curatedPlaces = (block.input as { places: CuratedPlace[] }).places;
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: block.id,
-              content: "Places saved successfully.",
+      const toolResults = await Promise.all(toolUseBlocks.map(async (block) => {
+        console.log(`[generatePlaces] Executing tool: ${block.name} (ID: ${block.id})`);
+        
+        if (block.name === "search_places") {
+          try {
+            const results = await searchPlaces({
+              query: (block.input as { query: string }).query,
+              latBias: input.lat,
+              lngBias: input.lng,
             });
-            saved = true;
-          } else {
-            // Handle unexpected tool calls
-            toolResults.push({
-              type: "tool_result",
+            return {
+              type: "tool_result" as const,
               tool_use_id: block.id,
-              content: `Error: Unknown tool "${block.name}". Available tools: search_places, save_places.`,
+              content: JSON.stringify(results),
+            };
+          } catch (error) {
+            console.error(`[generatePlaces] Tool search_places failed:`, error);
+            return {
+              type: "tool_result" as const,
+              tool_use_id: block.id,
+              content: `Error searching places: ${error instanceof Error ? error.message : String(error)}`,
               is_error: true,
-            });
+            };
           }
+        } else if (block.name === "save_places") {
+          curatedPlaces = (block.input as { places: CuratedPlace[] }).places;
+          saved = true;
+          return {
+            type: "tool_result" as const,
+            tool_use_id: block.id,
+            content: "Places saved successfully.",
+          };
+        } else {
+          return {
+            type: "tool_result" as const,
+            tool_use_id: block.id,
+            content: `Error: Unknown tool "${block.name}". Available tools: search_places, save_places.`,
+            is_error: true,
+          };
         }
-      }
+      }));
 
-      if (toolResults.length > 0) {
-        messages.push({ role: "user", content: toolResults });
-      }
-
+      const toolDuration = Date.now() - toolStartTime;
+      console.log(`[generatePlaces] Round ${round}: Tools executed in ${toolDuration}ms.`);
+      messages.push({ role: "user", content: toolResults });
+      
       if (saved) break;
     } else {
-      if (curatedPlaces.length === 0) {
+      // No tool calls in this response
+      if (stopReason === "tool_use") {
+        console.warn(`[generatePlaces] Round ${round}: stop_reason was tool_use but no tool_use blocks were found in content.`);
         messages.push({
           role: "user",
-          content:
-            "Please continue searching or call save_places if you have enough results.",
+          content: "You said you wanted to use a tool but didn't provide a tool_use block. Please retry or call save_places.",
+        });
+      } else if (!saved && curatedPlaces.length === 0) {
+        console.log(`[generatePlaces] Round ${round}: No tools and no places yet. Prodding LLM...`);
+        messages.push({
+          role: "user",
+          content: "Please continue searching for places or call save_places if you have enough results.",
         });
       } else {
+        // We have some results and no more tools, or we are done
         break;
       }
     }
   }
 
+  console.log(`[generatePlaces] Completed across ${round} rounds. Total places: ${curatedPlaces.length}`);
   return curatedPlaces;
 }

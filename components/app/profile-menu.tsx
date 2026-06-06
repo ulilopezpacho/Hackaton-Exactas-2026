@@ -16,7 +16,7 @@ export function ProfileMenu({ initial, signOutAction }: ProfileMenuProps) {
       <button
         aria-expanded={open}
         aria-label="Abrir perfil"
-        className="grid size-11 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground shadow-sm ring-2 ring-primary/20 transition hover:bg-primary/90 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+        className="grid size-10 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground shadow-sm ring-2 ring-primary/20 transition hover:bg-primary/90 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
