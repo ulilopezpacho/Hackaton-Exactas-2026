@@ -42,7 +42,7 @@ export async function signUp(formData: FormData) {
     email,
     password,
     options: {
-      emailRedirectTo: `${origin}/auth/callback?next=/app`,
+      emailRedirectTo: `${origin}/auth/callback?next=/app/onboarding`,
     },
   });
 
@@ -51,7 +51,7 @@ export async function signUp(formData: FormData) {
   }
 
   if (data.session) {
-    redirect("/app");
+    redirect("/app/onboarding");
   }
 
   redirect("/auth/login?message=Revisá tu email para confirmar la cuenta");
