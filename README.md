@@ -16,6 +16,26 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Google Maps
+
+The itinerary map uses the Google Maps JavaScript API. Configure:
+
+```bash
+NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=...
+NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=...
+```
+
+Enable billing and Maps JavaScript API, then restrict the browser key to the
+application's HTTP referrers. Without these variables, the itinerary keeps
+working and shows a configuration placeholder in the map tab.
+
+## Demo trip
+
+`supabase/seed.sql` creates an idempotent Madrid trip for
+`guidoadleredu@gmail.com` using deterministic UUIDs. Apply the migrations,
+run the seed, and execute `supabase/tests/trip_itinerary_rls.sql` with an
+administrative database connection to verify owner and non-owner RLS behavior.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
