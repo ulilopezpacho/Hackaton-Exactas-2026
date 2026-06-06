@@ -32,10 +32,17 @@ export default function TripPreferencesPage() {
         </CardContent>
       </Card>
       <div className="flex justify-between gap-3">
-        <Button render={<Link href="/app/trips/new/places" />} variant="outline">
+        <Button
+          nativeButton={false}
+          render={<Link href="/app/trips/new/places" />}
+          variant="outline"
+        >
           Volver
         </Button>
-        <Button render={<Link href="/app/trips/new/generating" />}>
+        <Button
+          nativeButton={false}
+          render={<Link href="/app/trips/new/generating" />}
+        >
           Generar itinerario
         </Button>
       </div>

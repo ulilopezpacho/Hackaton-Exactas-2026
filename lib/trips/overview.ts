@@ -1,10 +1,14 @@
 import "server-only";
 
 import { createClient } from "@/utils/supabase/server";
+import { selectCurrentItineraryLeaves } from "@/lib/trips/itinerary-versions";
 import type { TripOverview, TripsOverview, TripStatus } from "@/lib/trips/overview-types";
 
 type ItineraryOverview = {
+  created_at: string;
+  day_number: number;
   generation_prompt: string | null;
+  generated_from_itinerary_id: string | null;
   id: string;
   itinerary_type: string | null;
   status: string;
@@ -64,9 +68,18 @@ function formatDateRange(startsOn: string, endsOn: string) {
 function tripStatus(
   activeItineraries: ItineraryOverview[],
   endsOn: string,
+  storedStatus: string,
 ): TripStatus {
   if (activeItineraries.length === 0) {
     return "draft";
+  }
+
+  if (storedStatus === "ongoing") {
+    return "ongoing";
+  }
+
+  if (storedStatus === "completed") {
+    return "completed";
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -100,9 +113,10 @@ function placesLabel(status: TripStatus, placeCount: number, tripDayCount: numbe
 
 function sortTrips(trips: TripOverview[]) {
   const statusOrder: Record<TripStatus, number> = {
-    upcoming: 0,
-    completed: 1,
-    draft: 2,
+    ongoing: 0,
+    upcoming: 1,
+    completed: 2,
+    draft: 3,
   };
 
   return trips.toSorted((first, second) => {
@@ -136,16 +150,31 @@ export async function getTripsOverview(): Promise<TripsOverview> {
     };
   }
 
-  const { data: tripRows, error: tripsError } = await supabase
+  let { data: tripRows, error: tripsError } = await supabase
     .from("trips")
-    .select("id,title,country,starts_on,ends_on,updated_at")
+    .select("id,title,country,starts_on,ends_on,status,updated_at")
     .eq("owner_id", user.id)
     .order("starts_on", { ascending: true });
+
+  if (tripsError?.code === "42703") {
+    const fallbackResult = await supabase
+      .from("trips")
+      .select("id,title,country,starts_on,ends_on,updated_at")
+      .eq("owner_id", user.id)
+      .order("starts_on", { ascending: true });
+
+    tripsError = fallbackResult.error;
+    tripRows = (fallbackResult.data ?? []).map((trip) => ({
+      ...trip,
+      status: "planned",
+    }));
+  }
 
   if (tripsError) {
     throw tripsError;
   }
 
+  tripRows ??= [];
   const tripIds = tripRows.map((trip) => trip.id);
 
   if (tripIds.length === 0) {
@@ -159,14 +188,27 @@ export async function getTripsOverview(): Promise<TripsOverview> {
 
   const { data: itineraries, error: itinerariesError } = await supabase
     .from("itineraries")
-    .select("id,trip_id,status,itinerary_type,generation_prompt")
+    .select(
+      "id,trip_id,status,itinerary_type,generation_prompt,day_number,generated_from_itinerary_id,created_at",
+    )
     .in("trip_id", tripIds);
 
   if (itinerariesError) {
     throw itinerariesError;
   }
 
-  const itineraryIds = itineraries.map((itinerary) => itinerary.id);
+  const itinerariesByTrip = new Map<string, ItineraryOverview[]>();
+
+  for (const itinerary of itineraries) {
+    const tripItineraries = itinerariesByTrip.get(itinerary.trip_id) ?? [];
+    tripItineraries.push(itinerary);
+    itinerariesByTrip.set(itinerary.trip_id, tripItineraries);
+  }
+
+  const currentItineraries = Array.from(itinerariesByTrip.values()).flatMap(
+    selectCurrentItineraryLeaves,
+  );
+  const itineraryIds = currentItineraries.map((itinerary) => itinerary.id);
   const { data: itineraryItems, error: itemsError } = itineraryIds.length
     ? await supabase
         .from("itinerary_items")
@@ -178,15 +220,8 @@ export async function getTripsOverview(): Promise<TripsOverview> {
     throw itemsError;
   }
 
-  const itinerariesByTrip = new Map<string, ItineraryOverview[]>();
-
-  for (const itinerary of itineraries) {
-    const tripItineraries = itinerariesByTrip.get(itinerary.trip_id) ?? [];
-    tripItineraries.push(itinerary);
-    itinerariesByTrip.set(itinerary.trip_id, tripItineraries);
-  }
   const tripIdByItineraryId = new Map(
-    itineraries.map((itinerary) => [itinerary.id, itinerary.trip_id]),
+    currentItineraries.map((itinerary) => [itinerary.id, itinerary.trip_id]),
   );
   const placeIdsByTrip = new Map<string, Set<string>>();
 
@@ -208,10 +243,14 @@ export async function getTripsOverview(): Promise<TripsOverview> {
 
   const trips = sortTrips(
     tripRows.map((trip, index) => {
-      const activeItineraries = (itinerariesByTrip.get(trip.id) ?? []).filter(
-        (itinerary) => itinerary.status === "active",
+      const activeItineraries = selectCurrentItineraryLeaves(
+        itinerariesByTrip.get(trip.id) ?? [],
       );
-      const status = tripStatus(activeItineraries, trip.ends_on);
+      const status = tripStatus(
+        activeItineraries,
+        trip.ends_on,
+        trip.status,
+      );
       const tripDayCount = dayCount(trip.starts_on, trip.ends_on);
       const placeCount = placeIdsByTrip.get(trip.id)?.size ?? 0;
 
@@ -243,6 +282,9 @@ export async function getTripsOverview(): Promise<TripsOverview> {
       trips: trips.length,
     },
     trips,
-    upcomingTrip: trips.find((trip) => trip.status === "upcoming") ?? null,
+    upcomingTrip:
+      trips.find((trip) => trip.status === "ongoing") ??
+      trips.find((trip) => trip.status === "upcoming") ??
+      null,
   };
 }

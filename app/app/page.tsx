@@ -80,6 +80,7 @@ export default async function HomePage() {
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Button
                     className="h-11 rounded-full bg-card px-5 text-foreground hover:bg-card/90"
+                    nativeButton={false}
                     render={<Link href="/app/trips/new/destination" />}
                     variant="secondary"
                   >
@@ -88,6 +89,7 @@ export default async function HomePage() {
                   </Button>
                   <Button
                     className="h-11 rounded-full border-card/70 bg-transparent px-5 text-primary-foreground hover:bg-card/10"
+                    nativeButton={false}
                     render={<Link href="/app/trips" />}
                     variant="outline"
                   >
@@ -139,7 +141,11 @@ export default async function HomePage() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button className="rounded-full" render={<Link href={upcomingTrip.href} />}>
+                  <Button
+                    className="rounded-full"
+                    nativeButton={false}
+                    render={<Link href={upcomingTrip.href} />}
+                  >
                     Abrir
                   </Button>
                 </div>
@@ -157,7 +163,11 @@ export default async function HomePage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="rounded-full" render={<Link href="/app/trips/new/destination" />}>
+                <Button
+                  className="rounded-full"
+                  nativeButton={false}
+                  render={<Link href="/app/trips/new/destination" />}
+                >
                   Crear viaje
                 </Button>
               </CardContent>

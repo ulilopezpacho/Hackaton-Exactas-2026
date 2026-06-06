@@ -7,9 +7,11 @@ import type { ItineraryItemDto } from "@/lib/trips/data";
 import { cn } from "@/lib/utils";
 
 type GoogleTripMapProps = {
+  heightClassName?: string;
   items: ItineraryItemDto[];
   onSelect: (itemId: string) => void;
   selectedItemId: string | null;
+  showAllControl?: boolean;
 };
 
 const MARKER_COLORS = ["#C45124", "#287271", "#C28B22", "#6D5A9C", "#3F7D4B"];
@@ -98,9 +100,11 @@ function spreadNearbyPositions(items: ItineraryItemDto[]) {
 }
 
 export function GoogleTripMap({
+  heightClassName = "h-[32rem]",
   items,
   onSelect,
   selectedItemId,
+  showAllControl = true,
 }: GoogleTripMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -314,17 +318,19 @@ export function GoogleTripMap({
       )}
     >
       {mappedItems.length ? (
-        <div className="relative h-[32rem] w-full">
+        <div className={cn("relative w-full", heightClassName)}>
           <div className="h-full w-full" ref={containerRef} />
-          <button
-            aria-label="Ver todas las paradas"
-            className="absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border bg-white px-3 py-2 text-xs font-semibold text-foreground shadow-md transition hover:bg-stone-50"
-            onClick={showAllMarkers}
-            type="button"
-          >
-            <FocusIcon className="size-4" />
-            Ver todo
-          </button>
+          {showAllControl ? (
+            <button
+              aria-label="Ver todas las paradas"
+              className="absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border bg-white px-3 py-2 text-xs font-semibold text-foreground shadow-md transition hover:bg-stone-50"
+              onClick={showAllMarkers}
+              type="button"
+            >
+              <FocusIcon className="size-4" />
+              Ver todo
+            </button>
+          ) : null}
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">

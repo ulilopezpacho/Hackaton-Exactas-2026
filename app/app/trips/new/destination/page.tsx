@@ -57,7 +57,12 @@ export default function DestinationPage() {
         </Card>
       </div>
       <div className="flex justify-end">
-        <Button render={<Link href="/app/trips/new/places" />}>Continuar</Button>
+        <Button
+          nativeButton={false}
+          render={<Link href="/app/trips/new/places" />}
+        >
+          Continuar
+        </Button>
       </div>
     </PageShell>
   );

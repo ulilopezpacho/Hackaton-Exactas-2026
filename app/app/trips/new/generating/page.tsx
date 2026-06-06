@@ -34,7 +34,10 @@ export default function GeneratingPage() {
               </div>
             ))}
           </div>
-          <Button render={<Link href="/app/trips/madrid-demo/itinerary" />}>
+          <Button
+            nativeButton={false}
+            render={<Link href="/app/trips/madrid-demo/itinerary" />}
+          >
             Ver itinerario
           </Button>
         </CardContent>

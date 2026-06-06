@@ -32,7 +32,12 @@ export default function PlacesPage() {
           <SparklesIcon data-icon="inline-start" />
           Ordenar con IA
         </Button>
-        <Button render={<Link href="/app/trips/new/preferences" />} className="rounded-full" variant="outline">
+        <Button
+          className="rounded-full"
+          nativeButton={false}
+          render={<Link href="/app/trips/new/preferences" />}
+          variant="outline"
+        >
           Gustos
         </Button>
       </div>
@@ -72,7 +77,10 @@ export default function PlacesPage() {
         ))}
       </section>
       <div className="flex justify-end">
-        <Button render={<Link href="/app/trips/new/generating" />}>
+        <Button
+          nativeButton={false}
+          render={<Link href="/app/trips/new/generating" />}
+        >
           <SparklesIcon data-icon="inline-start" />
           Generar itinerario
         </Button>

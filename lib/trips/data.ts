@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 
+import { selectCurrentItineraryLeaves } from "@/lib/trips/itinerary-versions";
 import { createClient } from "@/utils/supabase/server";
 
 export type TripPlaceDto = {
@@ -18,11 +19,13 @@ export type TripPlaceDto = {
 export type ItineraryItemDto = {
   description: string | null;
   durationMinutes: number;
+  endsAt: string;
   endTime: string;
   id: string;
   itemType: string;
   place: TripPlaceDto | null;
   position: number;
+  startsAt: string;
   startTime: string;
   title: string;
 };
@@ -43,10 +46,16 @@ export type TripDto = {
   endsOn: string;
   id: string;
   isOwner: boolean;
+  copiedFromTripId: string | null;
+  currentDayNumber: number | null;
+  currentItineraryItemId: string | null;
   placeCount: number;
   startsOn: string;
   timezone: string;
   title: string;
+  travelCompletedAt: string | null;
+  travelStartedAt: string | null;
+  travelStatus: "planned" | "ongoing" | "completed";
 };
 
 function formatDateLabel(value: string, timezone: string) {
@@ -90,11 +99,34 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
     return null;
   }
 
-  const { data: trip, error: tripError } = await supabase
+  let { data: trip, error: tripError } = await supabase
     .from("trips")
-    .select("id,owner_id,title,country,timezone,starts_on,ends_on")
+    .select(
+      "id,owner_id,title,country,timezone,starts_on,ends_on,status,copied_from_trip_id,current_day_number,current_itinerary_item_id,travel_started_at,travel_completed_at",
+    )
     .eq("id", tripId)
     .maybeSingle();
+
+  if (tripError?.code === "42703") {
+    const fallbackResult = await supabase
+      .from("trips")
+      .select("id,owner_id,title,country,timezone,starts_on,ends_on")
+      .eq("id", tripId)
+      .maybeSingle();
+
+    tripError = fallbackResult.error;
+    trip = fallbackResult.data
+      ? {
+          ...fallbackResult.data,
+          copied_from_trip_id: null,
+          current_day_number: null,
+          current_itinerary_item_id: null,
+          status: "planned",
+          travel_completed_at: null,
+          travel_started_at: null,
+        }
+      : null;
+  }
 
   if (tripError) {
     throw tripError;
@@ -104,17 +136,19 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
     return null;
   }
 
-  const { data: itineraries, error: itineraryError } = await supabase
+  const { data: itineraryVersions, error: itineraryError } = await supabase
     .from("itineraries")
-    .select("id,day_number,title,status")
+    .select(
+      "id,day_number,title,status,itinerary_type,generated_from_itinerary_id,created_at",
+    )
     .eq("trip_id", trip.id)
-    .eq("status", "active")
     .order("day_number");
 
   if (itineraryError) {
     throw itineraryError;
   }
 
+  const itineraries = selectCurrentItineraryLeaves(itineraryVersions);
   const itineraryIds = itineraries.map((itinerary) => itinerary.id);
   const itemRequest = itineraryIds.length
     ? supabase
@@ -186,6 +220,7 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
         1,
         Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000),
       ),
+      endsAt: item.ends_at,
       endTime: formatTime(item.ends_at, trip.timezone),
       id: item.id,
       itemType: item.item_type,
@@ -202,6 +237,7 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
           }
         : null,
       position: item.position,
+      startsAt: item.starts_at,
       startTime: formatTime(item.starts_at, trip.timezone),
       title: item.title,
     });
@@ -230,9 +266,15 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
     endsOn: trip.ends_on,
     id: trip.id,
     isOwner: trip.owner_id === user.id,
+    copiedFromTripId: trip.copied_from_trip_id,
+    currentDayNumber: trip.current_day_number,
+    currentItineraryItemId: trip.current_itinerary_item_id,
     placeCount: placeIds.length,
     startsOn: trip.starts_on,
     timezone: trip.timezone,
     title: trip.title,
+    travelCompletedAt: trip.travel_completed_at,
+    travelStartedAt: trip.travel_started_at,
+    travelStatus: trip.status as TripDto["travelStatus"],
   };
 });

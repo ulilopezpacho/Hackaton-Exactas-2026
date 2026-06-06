@@ -17,7 +17,11 @@ export default async function TripsPage() {
             Mis viajes
           </h1>
         </div>
-        <Button className="h-10 rounded-full px-5" render={<Link href="/app/trips/new/destination" />}>
+        <Button
+          className="h-10 rounded-full px-5"
+          nativeButton={false}
+          render={<Link href="/app/trips/new/destination" />}
+        >
           <PlusIcon data-icon="inline-start" />
           Nuevo viaje
         </Button>

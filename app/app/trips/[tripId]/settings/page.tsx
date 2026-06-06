@@ -22,7 +22,11 @@ export default async function TripSettingsPage({ params }: SettingsPageProps) {
   return (
     <PageShell
       actions={
-        <Button render={<Link href={`/app/trips/${tripId}`} />} variant="outline">
+        <Button
+          nativeButton={false}
+          render={<Link href={`/app/trips/${tripId}`} />}
+          variant="outline"
+        >
           Volver al viaje
         </Button>
       }
