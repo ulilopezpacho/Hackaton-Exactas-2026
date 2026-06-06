@@ -156,8 +156,15 @@ export type Database = {
           location: unknown | null;
           name: string;
           owner_id: string | null;
+          popularity: number | null;
+          primary_type: string | null;
+          quality_score: number | null;
+          rating: number | null;
           source: string;
           status: string;
+          summary: string | null;
+          types: string[] | null;
+          user_ratings_total: number | null;
         };
         Insert: {
           address?: string | null;
@@ -171,9 +178,16 @@ export type Database = {
           location?: unknown | null;
           name: string;
           owner_id?: string | null;
+          popularity?: number | null;
+          primary_type?: string | null;
+          quality_score?: number | null;
+          rating?: number | null;
           source?: string;
           status?: string;
+          summary?: string | null;
+          types?: string[] | null;
           updated_at?: string;
+          user_ratings_total?: number | null;
         };
         Update: Partial<Database["public"]["Tables"]["places"]["Insert"]>;
         Relationships: [];

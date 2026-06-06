@@ -2,6 +2,19 @@ import { NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { scorePlaces } from "@/lib/places/score";
 import type { PlaceForScoring, UserPreferencesForScoring } from "@/lib/places/score";
+import type { Database } from "@/lib/supabase/database.types";
+
+type PlaceScoreRow = Pick<
+  Database["public"]["Tables"]["places"]["Row"],
+  | "category"
+  | "description"
+  | "id"
+  | "name"
+  | "popularity"
+  | "quality_score"
+  | "rating"
+  | "user_ratings_total"
+>;
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -37,7 +50,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Trip not found" }, { status: 404 });
   }
 
-  const { data: placesRaw, error: placesError } = await (supabase as any)
+  const { data: placesRaw, error: placesError } = await supabase
     .from("places")
     .select(
       "id, name, description, category, rating, user_ratings_total, quality_score, popularity",
@@ -52,8 +65,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const places: PlaceForScoring[] = (placesRaw ?? []).map(
-    (p: any) => ({
+  const places: PlaceForScoring[] = ((placesRaw ?? []) as PlaceScoreRow[]).map(
+    (p) => ({
       id: p.id,
       name: p.name,
       description: p.description,
@@ -81,8 +94,7 @@ export async function POST(request: NextRequest) {
   const scored = await scorePlaces({
     places,
     userPreferences: prefsForScoring,
-    tripCustomizationPrompt:
-      (trip as any).route_customization_prompt ?? undefined,
+    tripCustomizationPrompt: trip.route_customization_prompt ?? undefined,
   });
 
   return Response.json({ scores: scored });
