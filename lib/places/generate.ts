@@ -1,5 +1,5 @@
 import { createAnthropicClient } from "../ai/anthropic";
-import { searchPlaces } from "./google";
+import { searchPlaces, type PlaceCandidate } from "./google";
 import type {
   TextBlock,
   ToolUseBlock,
@@ -16,6 +16,14 @@ export interface CuratedPlace {
   lat: number;
   lng: number;
   defaultDurationMinutes?: number;
+  // Metadata joined back from Google Places API
+  primaryType?: string;
+  types?: string[];
+  summary?: string;
+  rating?: number;
+  userRatingsTotal?: number;
+  qualityScore?: number;
+  popularity?: number;
 }
 
 export interface GeneratePlacesInput {
@@ -31,11 +39,47 @@ export interface GeneratePlacesInput {
   lng: number;
 }
 
+/**
+ * Bayesian shrinkage average for quality_score.
+ * quality_score = (v / (v + m)) * R + (m / (v + m)) * C
+ * R = avg rating, v = review count, C = mean rating (~3.5), m = confidence threshold (~50)
+ */
+function computeQualityScore(rating?: number, total?: number): number | undefined {
+  if (rating === undefined || total === undefined) return undefined;
+  const m = 50;
+  const C = 3.5;
+  return (total / (total + m)) * rating + (m / (total + m)) * C;
+}
+
+/**
+ * Log-dampened popularity score.
+ * popularity = log10(user_ratings_total + 1)
+ */
+function computePopularity(total?: number): number | undefined {
+  if (total === undefined) return undefined;
+  return Math.log10(total + 1);
+}
+
+/**
+ * Normalizes a place name for fuzzy matching: lowercased, diacritics stripped,
+ * non-alphanumerics removed. Used to recover metadata when the model returns a
+ * mangled externalId but a recognizable name.
+ */
+function normalizeName(name?: string): string {
+  if (!name) return "";
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 export async function generatePlaces(
   input: GeneratePlacesInput,
 ): Promise<CuratedPlace[]> {
   const anthropic = createAnthropicClient();
   let curatedPlaces: CuratedPlace[] = [];
+  const allFoundPlaces = new Map<string, PlaceCandidate>();
 
   const systemPrompt = `You are an expert travel catalog curator. Your goal is to find and curate a list of 15-25 high-quality places for a trip to ${
     input.destination
@@ -52,12 +96,14 @@ Trip Context:
 Instructions:
 1. To be efficient, you SHOULD provide multiple "search_places" calls in a single response to cover different categories or interests (e.g., museums, restaurants, parks) simultaneously.
 2. Aim to find at least 30-40 candidate places across your searches so you can then filter them down to the best 15-25.
-3. Filter and curate the results to match the user's preferences and the trip's context perfectly.
-4. Estimate a "defaultDurationMinutes" for each place (how long a typical visitor spends there).
-5. Once you have a curated list of 15-25 unique places, call the "save_places" tool EXACTLY ONCE with the final list.
-6. Do not include duplicates. Ensure the externalId (Google Place ID) is preserved.
-7. Provide high-quality descriptions that explain why each place fits this specific trip.
-8. Efficiency is key: try to complete the entire curation in as few turns as possible (ideally 2-3 rounds).`;
+3. ONLY select places that literally appear in your "search_places" results. Never invent, guess, or recall a place from your own knowledge. If you want a place you have not found yet, run another search first — do not make it up.
+4. From the search results, select the 15-25 places that best fit the user's preferences and trip context. Do not include duplicates.
+5. For each selected place, provide a high-quality "description". This MUST be a **neutral, objective description** of what the place is (e.g., "A 19th-century gothic cathedral known for its stained glass" rather than "A great spot for your morning walk"). It should be durable and reusable for any traveler.
+6. Estimate a "defaultDurationMinutes" for each place (how long a typical visitor spends there).
+7. CRITICAL: Copy each "externalId" CHARACTER-FOR-CHARACTER from the exact search result you are selecting. These are opaque Google Place IDs (e.g., "ChIJ..."). Never shorten, edit, reformat, or fabricate them. Copy the "name", "address", "lat", and "lng" from that same search result too. Any place whose externalId does not exactly match a search result will be discarded.
+8. Once your selection is complete, call "save_places" EXACTLY ONCE with your final list.
+9. You do not need to provide technical metadata like primaryType, types, or ratings. These are joined back automatically from the externalId — which is exactly why the externalId must match a real search result. Focus your effort on curation and high-quality neutral descriptions.
+10. Efficiency is key: try to complete the entire curation in as few turns as possible (ideally 2-3 rounds).`;
 
   const messages: MessageParam[] = [
     {
@@ -133,7 +179,7 @@ Instructions:
     try {
       response = await anthropic.messages.create({
         model: "claude-haiku-4-5",
-        max_tokens: 4096,
+        max_tokens: 8192,
         system: systemPrompt,
         tools,
         messages,
@@ -151,6 +197,12 @@ Instructions:
     stopReason = response.stop_reason ?? undefined;
     console.log(`[generatePlaces] Round ${round}: LLM responded in ${llmDuration}ms. Stop reason: ${stopReason}`);
 
+    if (stopReason === "max_tokens") {
+      console.warn(
+        `[generatePlaces] Round ${round}: hit max_tokens — the response was truncated and any tool call in it may be incomplete. Consider raising max_tokens or trimming tool-result payloads.`,
+      );
+    }
+
     messages.push({
       role: "assistant",
       content: response.content as Array<TextBlock | ToolUseBlock>,
@@ -164,7 +216,7 @@ Instructions:
 
       const toolResults = await Promise.all(toolUseBlocks.map(async (block) => {
         console.log(`[generatePlaces] Executing tool: ${block.name} (ID: ${block.id})`);
-        
+
         if (block.name === "search_places") {
           try {
             const results = await searchPlaces({
@@ -172,10 +224,32 @@ Instructions:
               latBias: input.lat,
               lngBias: input.lng,
             });
+
+            // Cache the full candidate for joining metadata later, but only
+            // echo back the fields the model needs to curate. Sending the full
+            // payload (types[], summary, lat/lng) for every result across rounds
+            // is what blows up the token budget once the cache grows large.
+            const slim = results.map((r) => {
+              allFoundPlaces.set(r.externalId, r);
+              return {
+                externalId: r.externalId,
+                name: r.name,
+                address: r.address,
+                primaryType: r.primaryType,
+                rating: r.rating,
+                userRatingsTotal: r.userRatingsTotal,
+              };
+            });
+
+            const content = JSON.stringify(slim);
+            console.log(
+              `[generatePlaces] search_places "${(block.input as { query: string }).query}" -> ${results.length} rows (${content.length} chars). Cache now holds ${allFoundPlaces.size} unique places.`,
+            );
+
             return {
               type: "tool_result" as const,
               tool_use_id: block.id,
-              content: JSON.stringify(results),
+              content,
             };
           } catch (error) {
             console.error(`[generatePlaces] Tool search_places failed:`, error);
@@ -187,7 +261,60 @@ Instructions:
             };
           }
         } else if (block.name === "save_places") {
-          curatedPlaces = (block.input as { places: CuratedPlace[] }).places;
+          const rawSelection = (block.input as { places: CuratedPlace[] }).places;
+
+          // The model sometimes returns a mangled/invented externalId, which would
+          // miss the metadata join entirely. Fall back to matching by normalized
+          // name so we recover real selections, and drop anything that matches no
+          // searched result (it can't be a real, persistable place anyway).
+          const byName = new Map<string, PlaceCandidate>();
+          for (const candidate of allFoundPlaces.values()) {
+            const key = normalizeName(candidate.name);
+            if (key && !byName.has(key)) byName.set(key, candidate);
+          }
+
+          const dropped: string[] = [];
+          curatedPlaces = [];
+          for (const p of rawSelection) {
+            const meta =
+              allFoundPlaces.get(p.externalId?.trim()) ??
+              byName.get(normalizeName(p.name));
+
+            if (!meta) {
+              dropped.push(`${p.name} (${p.externalId})`);
+              continue;
+            }
+
+            // Cached Google candidate is the source of truth for identity and
+            // metadata; keep the model's curation (description/category/duration).
+            curatedPlaces.push({
+              ...p,
+              externalId: meta.externalId,
+              name: meta.name || p.name,
+              address: meta.address || p.address,
+              lat: meta.lat ?? p.lat,
+              lng: meta.lng ?? p.lng,
+              primaryType: meta.primaryType,
+              types: meta.types,
+              summary: meta.summary,
+              rating: meta.rating,
+              userRatingsTotal: meta.userRatingsTotal,
+              qualityScore: computeQualityScore(meta.rating, meta.userRatingsTotal),
+              popularity: computePopularity(meta.userRatingsTotal),
+            });
+          }
+
+          console.log(
+            `[generatePlaces] save_places -> ${rawSelection.length} rows submitted, ${curatedPlaces.length} kept, ${dropped.length} dropped.`,
+          );
+
+          if (dropped.length > 0) {
+            console.warn(
+              `[generatePlaces] Dropped ${dropped.length} curated place(s) with no matching searched result:`,
+              dropped,
+            );
+          }
+
           saved = true;
           return {
             type: "tool_result" as const,
