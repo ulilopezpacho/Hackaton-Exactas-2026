@@ -1,6 +1,5 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
-import { ItineraryExplorer } from "@/components/trips/itinerary-explorer";
 import { getTrip } from "@/lib/trips/data";
 
 export default async function ItineraryPage({
@@ -14,5 +13,7 @@ export default async function ItineraryPage({
     notFound();
   }
 
-  return <ItineraryExplorer selectedDay={firstDay} trip={trip} />;
+  redirect(
+    `/app/trips/${trip.id}/itinerary/${firstDay.dayNumber}`,
+  );
 }

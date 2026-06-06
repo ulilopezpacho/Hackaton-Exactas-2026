@@ -7,7 +7,6 @@ import {
   ListIcon,
   MapIcon,
   NavigationIcon,
-  PlayIcon,
   SparklesIcon,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -21,7 +20,9 @@ import {
 
 import { GoogleTripMap } from "@/components/trips/google-trip-map";
 import { PlaceArt } from "@/components/trips/place-art";
+import { SaveTripButton } from "@/components/trips/save-trip-button";
 import { ShareTripButton } from "@/components/trips/share-trip-button";
+import { StartTravelButton } from "@/components/trips/start-travel-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -144,9 +145,11 @@ function Timeline({ day }: { day: ItineraryDayDto }) {
             );
           }
 
-          const visibleIndex = day.items
-            .slice(0, itemIndex + 1)
-            .filter((candidate) => candidate.itemType !== "transfer").length - 1;
+          const visibleIndex =
+            day.items
+              .slice(0, itemIndex + 1)
+              .filter((candidate) => candidate.itemType !== "transfer").length -
+            1;
           const isRecommendation = item.itemType === "recommendation";
           const isFirst = visibleIndex === 0;
           const isLast = visibleIndex === visibleItems.length - 1;
@@ -249,7 +252,8 @@ function MapPanel({ day }: { day: ItineraryDayDto }) {
     }
 
     scrollTimerRef.current = setTimeout(() => {
-      const railCenter = rail.getBoundingClientRect().left + rail.clientWidth / 2;
+      const railCenter =
+        rail.getBoundingClientRect().left + rail.clientWidth / 2;
       let nearestItemId: string | null = null;
       let nearestDistance = Number.POSITIVE_INFINITY;
 
@@ -295,28 +299,28 @@ function MapPanel({ day }: { day: ItineraryDayDto }) {
           const selected = selectedItemId === item.id;
 
           return (
-          <div
-            className={cn(
-              "w-[82%] shrink-0 snap-center transition duration-200 sm:w-[62%]",
-              selected
-                ? "scale-100 opacity-100"
-                : "scale-[0.94] cursor-pointer opacity-55",
-            )}
-            key={item.id}
-            ref={(card) => {
-              if (card) {
-                cardRefs.current.set(item.id, card);
-              } else {
-                cardRefs.current.delete(item.id);
-              }
-            }}
-          >
-            <PlaceItem
-              item={item}
-              onSelect={selectItem}
-              selected={selected}
-            />
-          </div>
+            <div
+              className={cn(
+                "w-[82%] shrink-0 snap-center transition duration-200 sm:w-[62%]",
+                selected
+                  ? "scale-100 opacity-100"
+                  : "scale-[0.94] cursor-pointer opacity-55",
+              )}
+              key={item.id}
+              ref={(card) => {
+                if (card) {
+                  cardRefs.current.set(item.id, card);
+                } else {
+                  cardRefs.current.delete(item.id);
+                }
+              }}
+            >
+              <PlaceItem
+                item={item}
+                onSelect={selectItem}
+                selected={selected}
+              />
+            </div>
           );
         })}
       </div>
@@ -372,7 +376,10 @@ export function ItineraryExplorer({
             Volver al viaje
           </Button>
         )}
-        <ShareTripButton title={`${trip.title} · itinerario`} />
+        <div className="flex items-center gap-2">
+          <SaveTripButton tripId={trip.id} />
+          <ShareTripButton title={`${trip.title} · itinerario`} />
+        </div>
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -385,14 +392,7 @@ export function ItineraryExplorer({
           </h1>
         </div>
         {!immersive ? (
-          <Button
-            nativeButton={false}
-            render={<Link href={`/app/trips/${trip.id}/travel`} />}
-            size="lg"
-          >
-            <PlayIcon data-icon="inline-start" />
-            Iniciar modo viaje
-          </Button>
+          <StartTravelButton isOwner={trip.isOwner} tripId={trip.id} />
         ) : null}
       </div>
 
@@ -413,6 +413,7 @@ export function ItineraryExplorer({
             Mapa
           </TabsTrigger>
         </TabsList>
+
         <nav
           aria-label="Días del itinerario"
           className="flex gap-2 overflow-x-auto pb-1"
@@ -438,6 +439,7 @@ export function ItineraryExplorer({
             </Button>
           ))}
         </nav>
+
         <TabsContent value="list">
           <Card className="mt-2">
             <CardHeader>
@@ -461,15 +463,11 @@ export function ItineraryExplorer({
       {immersive ? (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
           <div className="mx-auto w-full max-w-6xl">
-            <Button
+            <StartTravelButton
               className="w-full rounded-full"
-              nativeButton={false}
-              render={<Link href={`/app/trips/${trip.id}/travel`} />}
-              size="lg"
-            >
-              <PlayIcon data-icon="inline-start" />
-              Iniciar modo viaje
-            </Button>
+              isOwner={trip.isOwner}
+              tripId={trip.id}
+            />
           </div>
         </div>
       ) : null}
