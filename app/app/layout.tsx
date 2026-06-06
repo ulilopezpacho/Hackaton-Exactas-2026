@@ -24,8 +24,8 @@ export default async function AppLayout({
   const initial = profileName.trim().charAt(0).toUpperCase() || "R";
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b bg-card/80">
+    <main className="app-shell min-h-screen bg-background text-foreground">
+      <header className="app-header border-b bg-card/80">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-5 py-4">
           <Link className="font-heading text-xl font-semibold" href="/app">
             Rumbo

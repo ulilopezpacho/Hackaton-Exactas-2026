@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  ChevronLeftIcon,
   Clock3Icon,
   ListIcon,
   MapIcon,
@@ -9,6 +10,7 @@ import {
   PlayIcon,
   SparklesIcon,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -323,22 +325,53 @@ function MapPanel({ day }: { day: ItineraryDayDto }) {
 }
 
 export function ItineraryExplorer({
+  immersive = false,
   selectedDay,
   trip,
 }: {
+  immersive?: boolean;
   selectedDay: ItineraryDayDto;
   trip: TripDto;
 }) {
+  const router = useRouter();
+
+  function goBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push(`/app/trips/${trip.id}`);
+  }
+
   return (
-    <section className="mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8">
+    <section
+      className={cn(
+        "mx-auto flex w-full max-w-6xl flex-col gap-5 px-4 py-6 sm:px-6 sm:py-8",
+        immersive && "pb-28 sm:pb-32",
+      )}
+      data-itinerary-day-view={immersive ? "" : undefined}
+    >
       <div className="flex items-center justify-between gap-4">
-        <Button
-          nativeButton={false}
-          render={<Link href={`/app/trips/${trip.id}`} />}
-          variant="ghost"
-        >
-          Volver al viaje
-        </Button>
+        {immersive ? (
+          <Button
+            aria-label="Volver"
+            className="size-10 rounded-full border bg-card shadow-sm"
+            onClick={goBack}
+            size="icon"
+            variant="ghost"
+          >
+            <ChevronLeftIcon className="size-5" />
+          </Button>
+        ) : (
+          <Button
+            nativeButton={false}
+            render={<Link href={`/app/trips/${trip.id}`} />}
+            variant="ghost"
+          >
+            Volver al viaje
+          </Button>
+        )}
         <ShareTripButton title={`${trip.title} · itinerario`} />
       </div>
 
@@ -351,41 +384,17 @@ export function ItineraryExplorer({
             {trip.dayCount} días, listos
           </h1>
         </div>
-        <Button
-          nativeButton={false}
-          render={<Link href={`/app/trips/${trip.id}/travel`} />}
-          size="lg"
-        >
-          <PlayIcon data-icon="inline-start" />
-          Iniciar modo viaje
-        </Button>
-      </div>
-
-      <nav
-        aria-label="Días del itinerario"
-        className="flex gap-2 overflow-x-auto pb-1"
-      >
-        {trip.days.map((day) => (
+        {!immersive ? (
           <Button
-            className="h-auto shrink-0 flex-col items-start rounded-2xl px-4 py-2"
-            key={day.id}
             nativeButton={false}
-            render={
-              <Link
-                href={`/app/trips/${trip.id}/itinerary/${day.dayNumber}`}
-              />
-            }
-            variant={
-              day.dayNumber === selectedDay.dayNumber ? "default" : "outline"
-            }
+            render={<Link href={`/app/trips/${trip.id}/travel`} />}
+            size="lg"
           >
-            <span>Día {day.dayNumber}</span>
-            <span className="text-xs capitalize opacity-70">
-              {day.dateLabel}
-            </span>
+            <PlayIcon data-icon="inline-start" />
+            Iniciar modo viaje
           </Button>
-        ))}
-      </nav>
+        ) : null}
+      </div>
 
       <Tabs defaultValue="list">
         <TabsList className="w-full rounded-full sm:w-72">
@@ -404,6 +413,31 @@ export function ItineraryExplorer({
             Mapa
           </TabsTrigger>
         </TabsList>
+        <nav
+          aria-label="Días del itinerario"
+          className="flex gap-2 overflow-x-auto pb-1"
+        >
+          {trip.days.map((day) => (
+            <Button
+              className="h-auto shrink-0 flex-col items-start rounded-2xl px-4 py-2"
+              key={day.id}
+              nativeButton={false}
+              render={
+                <Link
+                  href={`/app/trips/${trip.id}/itinerary/${day.dayNumber}`}
+                />
+              }
+              variant={
+                day.dayNumber === selectedDay.dayNumber ? "default" : "outline"
+              }
+            >
+              <span>Día {day.dayNumber}</span>
+              <span className="text-xs capitalize opacity-70">
+                {day.dateLabel}
+              </span>
+            </Button>
+          ))}
+        </nav>
         <TabsContent value="list">
           <Card className="mt-2">
             <CardHeader>
@@ -423,6 +457,22 @@ export function ItineraryExplorer({
           </div>
         </TabsContent>
       </Tabs>
+
+      {immersive ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
+          <div className="mx-auto w-full max-w-6xl">
+            <Button
+              className="w-full rounded-full"
+              nativeButton={false}
+              render={<Link href={`/app/trips/${trip.id}/travel`} />}
+              size="lg"
+            >
+              <PlayIcon data-icon="inline-start" />
+              Iniciar modo viaje
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

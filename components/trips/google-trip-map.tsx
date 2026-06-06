@@ -1,6 +1,5 @@
 "use client";
 
-import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import { FocusIcon, MapIcon } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 
@@ -145,6 +144,10 @@ export function GoogleTripMap({
     const markers = markersRef.current;
 
     async function initializeMap() {
+      const { importLibrary, setOptions } = await import(
+        "@googlemaps/js-api-loader"
+      );
+
       setOptions({
         authReferrerPolicy: "origin",
         key: apiKey,
