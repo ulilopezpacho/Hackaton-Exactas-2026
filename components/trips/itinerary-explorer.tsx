@@ -9,7 +9,13 @@ import {
   PlayIcon,
   SparklesIcon,
 } from "lucide-react";
-import { useCallback, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { GoogleTripMap } from "@/components/trips/google-trip-map";
 import { PlaceArt } from "@/components/trips/place-art";
@@ -81,6 +87,9 @@ function PlaceItem({
               {item.place?.category ? (
                 <Badge variant="secondary">{item.place.category}</Badge>
               ) : null}
+              <span className="text-xs font-semibold tabular-nums text-foreground">
+                {item.startTime}
+              </span>
               <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                 <Clock3Icon className="size-3" />
                 {formatDuration(item.durationMinutes)}
@@ -207,27 +216,107 @@ function MapPanel({ day }: { day: ItineraryDayDto }) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(
     mappedItems[0]?.id ?? null,
   );
+  const railRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef(new Map<string, HTMLDivElement>());
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectItem = useCallback((itemId: string) => {
     setSelectedItemId(itemId);
   }, []);
 
+  useEffect(() => {
+    if (!selectedItemId) {
+      return;
+    }
+
+    cardRefs.current.get(selectedItemId)?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [selectedItemId]);
+
+  const selectCenteredCard = useCallback(() => {
+    const rail = railRef.current;
+
+    if (!rail) {
+      return;
+    }
+
+    if (scrollTimerRef.current !== null) {
+      clearTimeout(scrollTimerRef.current);
+    }
+
+    scrollTimerRef.current = setTimeout(() => {
+      const railCenter = rail.getBoundingClientRect().left + rail.clientWidth / 2;
+      let nearestItemId: string | null = null;
+      let nearestDistance = Number.POSITIVE_INFINITY;
+
+      cardRefs.current.forEach((card, itemId) => {
+        const bounds = card.getBoundingClientRect();
+        const distance = Math.abs(bounds.left + bounds.width / 2 - railCenter);
+
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestItemId = itemId;
+        }
+      });
+
+      if (nearestItemId) {
+        setSelectedItemId(nearestItemId);
+      }
+    }, 100);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (scrollTimerRef.current !== null) {
+        clearTimeout(scrollTimerRef.current);
+      }
+    },
+    [],
+  );
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+    <div className="grid min-w-0 gap-4">
       <GoogleTripMap
         items={mappedItems}
         onSelect={selectItem}
         selectedItemId={selectedItemId}
       />
-      <div className="flex gap-3 overflow-x-auto pb-2 lg:max-h-[32rem] lg:flex-col lg:overflow-y-auto lg:pb-0">
-        {mappedItems.map((item) => (
-          <div className="w-72 shrink-0 lg:w-auto" key={item.id}>
+      <div
+        aria-label="Paradas del mapa"
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-[9%] pb-2 pt-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        onScroll={selectCenteredCard}
+        ref={railRef}
+      >
+        {mappedItems.map((item) => {
+          const selected = selectedItemId === item.id;
+
+          return (
+          <div
+            className={cn(
+              "w-[82%] shrink-0 snap-center transition duration-200 sm:w-[62%]",
+              selected
+                ? "scale-100 opacity-100"
+                : "scale-[0.94] cursor-pointer opacity-55",
+            )}
+            key={item.id}
+            ref={(card) => {
+              if (card) {
+                cardRefs.current.set(item.id, card);
+              } else {
+                cardRefs.current.delete(item.id);
+              }
+            }}
+          >
             <PlaceItem
               item={item}
               onSelect={selectItem}
-              selected={selectedItemId === item.id}
+              selected={selected}
             />
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -16,6 +16,28 @@ type GoogleTripMapProps = {
 const MARKER_COLORS = ["#C45124", "#287271", "#C28B22", "#6D5A9C", "#3F7D4B"];
 const NEARBY_THRESHOLD = 0.003;
 const SPREAD_RADIUS = 0.0035;
+const CLEAN_MAP_STYLES: google.maps.MapTypeStyle[] = [
+  {
+    featureType: "administrative",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    featureType: "transit",
+    elementType: "labels",
+    stylers: [{ visibility: "off" }],
+  },
+  {
+    featureType: "road",
+    elementType: "labels.icon",
+    stylers: [{ visibility: "off" }],
+  },
+];
 
 type MapPosition = {
   lat: number;
@@ -148,6 +170,10 @@ export function GoogleTripMap({
         mapId: mapId || "DEMO_MAP_ID",
         zoomControl: true,
       });
+
+      if (!mapId) {
+        map.setOptions({ styles: CLEAN_MAP_STYLES });
+      }
 
       mapRef.current = map;
       markers.clear();
