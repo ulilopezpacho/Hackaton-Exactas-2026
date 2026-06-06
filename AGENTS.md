@@ -4,6 +4,12 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Project tooling
+
+- Supabase CLI is installed as a dev dependency. Use `npx supabase ...` instead of assuming a global `supabase` binary exists.
+- For remote Supabase migrations, use the authenticated Supabase connector/MCP to apply SQL directly. Do not run `supabase login`, do not link via keychain-backed auth, and do not require a global CLI session.
+- After applying a remote migration through the connector, list remote migrations and name the local migration file with the exact remote version/name before committing.
+
 ## Project routing decisions
 
 - Use normal visible route segments for the main product areas:
