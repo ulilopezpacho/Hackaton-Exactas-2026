@@ -42,6 +42,7 @@ export type TripDto = {
   days: ItineraryDayDto[];
   endsOn: string;
   id: string;
+  isOwner: boolean;
   placeCount: number;
   startsOn: string;
   timezone: string;
@@ -91,9 +92,8 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
 
   const { data: trip, error: tripError } = await supabase
     .from("trips")
-    .select("id,title,country,timezone,starts_on,ends_on")
+    .select("id,owner_id,title,country,timezone,starts_on,ends_on")
     .eq("id", tripId)
-    .eq("owner_id", user.id)
     .maybeSingle();
 
   if (tripError) {
@@ -229,6 +229,7 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
     days,
     endsOn: trip.ends_on,
     id: trip.id,
+    isOwner: trip.owner_id === user.id,
     placeCount: placeIds.length,
     startsOn: trip.starts_on,
     timezone: trip.timezone,

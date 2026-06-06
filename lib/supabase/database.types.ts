@@ -17,6 +17,7 @@ export type Database = {
       trips: {
         Row: TimestampColumns & {
           country: string;
+          destination_id: string | null;
           ends_on: string;
           id: string;
           owner_id: string;
@@ -28,6 +29,7 @@ export type Database = {
         Insert: {
           country?: string;
           created_at?: string;
+          destination_id?: string | null;
           ends_on: string;
           id?: string;
           owner_id: string;
@@ -38,6 +40,36 @@ export type Database = {
           visibility?: string;
         };
         Update: Partial<Database["public"]["Tables"]["trips"]["Insert"]>;
+        Relationships: [];
+      };
+      destinations: {
+        Row: TimestampColumns & {
+          admin_area: string | null;
+          country: string | null;
+          description: string | null;
+          external_id: string | null;
+          id: string;
+          location: unknown | null;
+          name: string;
+          owner_id: string | null;
+          source: string;
+          status: string;
+        };
+        Insert: {
+          admin_area?: string | null;
+          country?: string | null;
+          created_at?: string;
+          description?: string | null;
+          external_id?: string | null;
+          id?: string;
+          location?: unknown | null;
+          name: string;
+          owner_id?: string | null;
+          source?: string;
+          status?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["destinations"]["Insert"]>;
         Relationships: [];
       };
       itineraries: {
@@ -104,6 +136,7 @@ export type Database = {
           category: string | null;
           default_duration_minutes: number | null;
           description: string | null;
+          destination_id: string | null;
           external_id: string | null;
           id: string;
           location: unknown | null;
@@ -118,6 +151,7 @@ export type Database = {
           created_at?: string;
           default_duration_minutes?: number | null;
           description?: string | null;
+          destination_id?: string | null;
           external_id?: string | null;
           id?: string;
           location?: unknown | null;

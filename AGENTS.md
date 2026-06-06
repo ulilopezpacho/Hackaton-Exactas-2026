@@ -53,16 +53,17 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/auth/sign-up`: functional Supabase email/password signup.
 - `/auth/callback`: functional Supabase auth-code exchange.
 - `/app/layout.tsx`: functional private shell; protects `/app/...` routes and provides logout.
+- `/app`: functional Supabase-backed private home/dashboard cards.
+- `/app/trips`: functional Supabase-backed trip list.
 - `/app/trips/[tripId]`: functional Supabase-backed trip summary.
 - `/app/trips/[tripId]/itinerary`: functional Supabase-backed itinerary and map.
 - `/app/trips/[tripId]/itinerary/[dayNumber]`: functional day detail.
 - `/app/onboarding`: functional required preferences onboarding.
 - `/app/profile/preferences`: functional saved preferences editor.
+- `POST /api/trips/[tripId]/place-catalog`: functional one-shot destination and place catalog generation.
 
 ### Mocked
 
-- `/app`: mocked private home/dashboard cards.
-- `/app/trips`: mocked trip list.
 - `/app/trips/new/destination`: mocked destination and date selection.
 - `/app/trips/new/places`: mocked wishlist, suggestions, and activity ordering.
 - `/app/trips/new/preferences`: mocked trip preference selection.
@@ -70,3 +71,40 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/[tripId]/travel`: mocked travel mode and replanning actions.
 - `/app/trips/[tripId]/settings`: mocked trip settings.
 - `/app/profile`: partially functional session read and saved preferences summary.
+
+## Internal Handlers & APIs
+
+### Places & Destination Logic (`lib/places/`)
+
+- **`google.ts`**: Core wrapper for Google Places API (New).
+  - `searchPlaces({ query, latBias, lngBias })`: Returns `PlaceCandidate[]`. Mocked if API key is missing.
+  - `resolveDestination(query)`: Resolves destination name to coordinates and administrative metadata.
+- **`generatePlaces(input)`**: Higher-level AI orchestrator. Uses Claude to curate 15-25 places matching user preferences and destination context.
+
+### Reusable API Endpoints
+
+- **`POST /api/trips/[tripId]/place-catalog`**:
+  - Populates a trip with its destination and a full curated place catalog in one call.
+  - Automatically fetches user preferences and resolves coordinates.
+  - Verification: `npx tsx scripts/verify-catalog-loop.ts <trip_id>`
+
+## Tech Stack
+
+- **Framework**: Next.js 16 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS 4, Vanilla CSS
+- **Components**: Shadcn UI, Base UI, Lucide Icons
+- **Backend**: Supabase (PostgreSQL, Auth, SSR)
+- **AI**: Anthropic SDK (Claude models)
+
+## Agent Guidelines
+
+- **Skills**: This project uses specialized skills in `.agents/skills/`. Activate relevant skills before starting tasks (e.g., `activate_skill("supabase")`).
+- **Memory**: 
+  - Gemini: Use the private memory folder for local notes.
+  - Claude: Use `.claude/` for internal state.
+- **Workflow**: 
+  - Always research the current implementation status before starting.
+  - For new features, update the "Page implementation status" in this file.
+  - Follow the Plan -> Act -> Validate cycle.
+  - Verify changes by running `npm run lint` and relevant tests.
