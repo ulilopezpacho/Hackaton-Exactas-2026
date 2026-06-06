@@ -104,3 +104,75 @@ export function buildCuratedPlaces(
 
   return { curated, dropped };
 }
+
+/**
+ * A place the model picked during curation. Identity comes from `ref` (a short
+ * token we assigned to each searched candidate); the model only authors the
+ * curation fields. The bulky `description` is filled in by a separate parallel
+ * pass — see generateDescriptions in generate.ts.
+ */
+export interface PlaceSelection {
+  ref: string;
+  category: string;
+  defaultDurationMinutes?: number;
+  description?: string;
+}
+
+/**
+ * Ref-based variant of {@link buildCuratedPlaces}.
+ *
+ * Instead of having the model re-type opaque Google place IDs (and the name,
+ * address, lat, lng we already cached) into the save tool, each searched
+ * candidate is echoed back with a short `ref` like "p42". The model saves by
+ * ref, so its output shrinks to just the fields it actually authors — which is
+ * the single biggest lever on generation latency. Identity and all metadata are
+ * read back here from `refToPlace`. A ref that matches nothing is dropped.
+ *
+ * `description` falls back to Google's editorial summary, then empty string,
+ * when the description pass produced nothing for that ref.
+ *
+ * Duplicate picks (the same place selected under two refs, or the same ref
+ * twice) are collapsed to the first occurrence — the catalog upsert is keyed on
+ * (destination_id, external_id), so emitting the same place twice would crash
+ * the batch with a Postgres ON CONFLICT error.
+ */
+export function buildCuratedFromRefs(
+  selections: PlaceSelection[],
+  refToPlace: Map<string, PlaceCandidate>,
+): { curated: CuratedPlace[]; dropped: string[] } {
+  const curated: CuratedPlace[] = [];
+  const dropped: string[] = [];
+  const seen = new Set<string>();
+
+  for (const sel of selections) {
+    const meta = refToPlace.get(sel.ref?.trim());
+
+    if (!meta) {
+      dropped.push(sel.ref);
+      continue;
+    }
+
+    if (seen.has(meta.externalId)) continue;
+    seen.add(meta.externalId);
+
+    curated.push({
+      name: meta.name,
+      description: sel.description ?? meta.summary ?? "",
+      category: sel.category,
+      address: meta.address,
+      externalId: meta.externalId,
+      lat: meta.lat,
+      lng: meta.lng,
+      defaultDurationMinutes: sel.defaultDurationMinutes,
+      primaryType: meta.primaryType,
+      types: meta.types,
+      summary: meta.summary,
+      rating: meta.rating,
+      userRatingsTotal: meta.userRatingsTotal,
+      qualityScore: computeQualityScore(meta.rating, meta.userRatingsTotal),
+      popularity: computePopularity(meta.userRatingsTotal),
+    });
+  }
+
+  return { curated, dropped };
+}

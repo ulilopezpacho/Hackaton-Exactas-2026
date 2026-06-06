@@ -1,6 +1,10 @@
 import { createAnthropicClient } from "../ai/anthropic";
 import { searchPlaces, type PlaceCandidate } from "./google";
-import { buildCuratedPlaces, type CuratedPlace } from "./catalog";
+import {
+  buildCuratedFromRefs,
+  type CuratedPlace,
+  type PlaceSelection,
+} from "./catalog";
 import type {
   TextBlock,
   ToolUseBlock,
@@ -9,6 +13,13 @@ import type {
 } from "@anthropic-ai/sdk/resources/messages.mjs";
 
 export type { CuratedPlace } from "./catalog";
+
+const MODEL = "claude-haiku-4-5";
+/**
+ * Places per concurrent description request. Any batch that gets rejected (e.g.
+ * an upstream 429) just falls back to Google summaries.
+ */
+const DESCRIPTION_BATCH_SIZE = 6;
 
 export interface GeneratePlacesInput {
   destination: string;
@@ -27,8 +38,23 @@ export async function generatePlaces(
   input: GeneratePlacesInput,
 ): Promise<CuratedPlace[]> {
   const anthropic = createAnthropicClient();
-  let curatedPlaces: CuratedPlace[] = [];
-  const allFoundPlaces = new Map<string, PlaceCandidate>();
+
+  // The model curates by short `ref` tokens instead of re-typing opaque Google
+  // place IDs. We assign one ref per unique candidate and can look the full
+  // candidate back up by ref when assembling the final catalog.
+  const refToPlace = new Map<string, PlaceCandidate>();
+  const refByExternalId = new Map<string, string>();
+  const refFor = (candidate: PlaceCandidate): string => {
+    let ref = refByExternalId.get(candidate.externalId);
+    if (!ref) {
+      ref = `p${refToPlace.size}`;
+      refByExternalId.set(candidate.externalId, ref);
+      refToPlace.set(ref, candidate);
+    }
+    return ref;
+  };
+
+  let selections: PlaceSelection[] = [];
 
   const systemPrompt = `You are an expert travel catalog curator. Your goal is to find and curate a list of 15-25 high-quality places for a trip to ${
     input.destination
@@ -47,12 +73,11 @@ Instructions:
 2. Aim to find at least 30-40 candidate places across your searches so you can then filter them down to the best 15-25.
 3. ONLY select places that literally appear in your "search_places" results. Never invent, guess, or recall a place from your own knowledge. If you want a place you have not found yet, run another search first — do not make it up.
 4. From the search results, select the 15-25 places that best fit the user's preferences and trip context. Do not include duplicates.
-5. For each selected place, provide a high-quality "description". This MUST be a **neutral, objective description** of what the place is (e.g., "A 19th-century gothic cathedral known for its stained glass" rather than "A great spot for your morning walk"). It should be durable and reusable for any traveler.
-6. Estimate a "defaultDurationMinutes" for each place (how long a typical visitor spends there).
-7. CRITICAL: Copy each "externalId" CHARACTER-FOR-CHARACTER from the exact search result you are selecting. These are opaque Google Place IDs (e.g., "ChIJ..."). Never shorten, edit, reformat, or fabricate them. Copy the "name", "address", "lat", and "lng" from that same search result too. Any place whose externalId does not exactly match a search result will be discarded.
+5. For each selected place, choose a "category" that fits the trip context and estimate a "defaultDurationMinutes" (how long a typical visitor spends there).
+6. CRITICAL: Identify each place by its "ref" — the short token (e.g. "p12") shown next to it in the search results. Copy the ref EXACTLY. Any selection whose ref does not match a search result will be discarded.
+7. You do NOT write descriptions or any other metadata here. Names, addresses, ratings, and neutral descriptions are all attached automatically from the ref. Focus only on picking the best places and assigning a category and duration.
 8. Once your selection is complete, call "save_places" EXACTLY ONCE with your final list.
-9. You do not need to provide technical metadata like primaryType, types, or ratings. These are joined back automatically from the externalId — which is exactly why the externalId must match a real search result. Focus your effort on curation and high-quality neutral descriptions.
-10. Efficiency is key: try to complete the entire curation in as few turns as possible (ideally 2-3 rounds).`;
+9. Efficiency is key: try to complete the entire curation in as few turns as possible (ideally 2-3 rounds).`;
 
   const messages: MessageParam[] = [
     {
@@ -89,24 +114,15 @@ Instructions:
             items: {
               type: "object",
               properties: {
-                name: { type: "string" },
-                description: { type: "string" },
+                ref: {
+                  type: "string",
+                  description:
+                    "The short ref token of the chosen search result, e.g. 'p12'. Copy it exactly.",
+                },
                 category: { type: "string" },
-                address: { type: "string" },
-                externalId: { type: "string" },
-                lat: { type: "number" },
-                lng: { type: "number" },
                 defaultDurationMinutes: { type: "number" },
               },
-              required: [
-                "name",
-                "description",
-                "category",
-                "address",
-                "externalId",
-                "lat",
-                "lng",
-              ],
+              required: ["ref", "category"],
             },
           },
         },
@@ -127,7 +143,7 @@ Instructions:
     let response;
     try {
       response = await anthropic.messages.create({
-        model: "claude-haiku-4-5",
+        model: MODEL,
         max_tokens: 8192,
         system: systemPrompt,
         tools,
@@ -135,9 +151,9 @@ Instructions:
       });
     } catch (error) {
       console.error(`[generatePlaces] Error in Round ${round}:`, error);
-      if (curatedPlaces.length > 0) {
-        console.warn(`[generatePlaces] Returning ${curatedPlaces.length} partially generated places due to error.`);
-        return curatedPlaces;
+      if (selections.length > 0) {
+        console.warn(`[generatePlaces] Returning ${selections.length} curated places (Google summaries as descriptions) due to error.`);
+        return buildCuratedFromRefs(selections, refToPlace).curated;
       }
       throw error;
     }
@@ -175,24 +191,22 @@ Instructions:
             });
 
             // Cache the full candidate for joining metadata later, but only
-            // echo back the fields the model needs to curate. Sending the full
-            // payload (types[], summary, lat/lng) for every result across rounds
-            // is what blows up the token budget once the cache grows large.
-            const slim = results.map((r) => {
-              allFoundPlaces.set(r.externalId, r);
-              return {
-                externalId: r.externalId,
-                name: r.name,
-                address: r.address,
-                primaryType: r.primaryType,
-                rating: r.rating,
-                userRatingsTotal: r.userRatingsTotal,
-              };
-            });
+            // echo back the fields the model needs to curate. The opaque Google
+            // ID is replaced with a short `ref` so the model never has to retype
+            // it — that, plus dropping descriptions from save_places, is what
+            // keeps the final generation fast.
+            const slim = results.map((r) => ({
+              ref: refFor(r),
+              name: r.name,
+              address: r.address,
+              primaryType: r.primaryType,
+              rating: r.rating,
+              userRatingsTotal: r.userRatingsTotal,
+            }));
 
             const content = JSON.stringify(slim);
             console.log(
-              `[generatePlaces] search_places "${(block.input as { query: string }).query}" -> ${results.length} rows (${content.length} chars). Cache now holds ${allFoundPlaces.size} unique places.`,
+              `[generatePlaces] search_places "${(block.input as { query: string }).query}" -> ${results.length} rows (${content.length} chars). Cache now holds ${refToPlace.size} unique places.`,
             );
 
             return {
@@ -210,27 +224,17 @@ Instructions:
             };
           }
         } else if (block.name === "save_places") {
-          const rawSelection = (block.input as { places: CuratedPlace[] }).places;
+          // The model saves by `ref`; any ref that matches no searched result
+          // is dropped when the catalog is assembled. Descriptions are filled in
+          // afterwards by a separate parallel pass.
+          selections = (block.input as { places: PlaceSelection[] }).places;
 
-          // The model sometimes returns a mangled/invented externalId; the join
-          // recovers real picks by name and drops anything unmatched. See
-          // buildCuratedPlaces.
-          const { curated, dropped } = buildCuratedPlaces(
-            rawSelection,
-            allFoundPlaces,
-          );
-          curatedPlaces = curated;
-
+          const unknown = selections.filter(
+            (s) => !refToPlace.has(s.ref?.trim()),
+          ).length;
           console.log(
-            `[generatePlaces] save_places -> ${rawSelection.length} rows submitted, ${curatedPlaces.length} kept, ${dropped.length} dropped.`,
+            `[generatePlaces] save_places -> ${selections.length} refs submitted, ${unknown} unmatched.`,
           );
-
-          if (dropped.length > 0) {
-            console.warn(
-              `[generatePlaces] Dropped ${dropped.length} curated place(s) with no matching searched result:`,
-              dropped,
-            );
-          }
 
           saved = true;
           return {
@@ -261,7 +265,7 @@ Instructions:
           role: "user",
           content: "You said you wanted to use a tool but didn't provide a tool_use block. Please retry or call save_places.",
         });
-      } else if (!saved && curatedPlaces.length === 0) {
+      } else if (!saved && selections.length === 0) {
         console.log(`[generatePlaces] Round ${round}: No tools and no places yet. Prodding LLM...`);
         messages.push({
           role: "user",
@@ -274,6 +278,143 @@ Instructions:
     }
   }
 
-  console.log(`[generatePlaces] Completed across ${round} rounds. Total places: ${curatedPlaces.length}`);
-  return curatedPlaces;
+  console.log(`[generatePlaces] Curation complete across ${round} rounds. ${selections.length} places selected.`);
+
+  // Phase 2: write the neutral descriptions in parallel. This is the heavy
+  // output work, and the descriptions are independent of one another, so we
+  // batch and fan them out concurrently instead of streaming one giant tool
+  // call. Anything left without a description falls back to Google's editorial
+  // summary in buildCuratedFromRefs.
+  await fillDescriptions(anthropic, input.destination, selections, refToPlace);
+
+  const { curated, dropped } = buildCuratedFromRefs(selections, refToPlace);
+  if (dropped.length > 0) {
+    console.warn(
+      `[generatePlaces] Dropped ${dropped.length} selection(s) with no matching searched result:`,
+      dropped,
+    );
+  }
+
+  console.log(`[generatePlaces] Completed. Total places: ${curated.length}`);
+  return curated;
+}
+
+/**
+ * Generates a neutral, objective description for each selected place, mutating
+ * `selections[].description` in place. Work is split into fixed-size batches run
+ * concurrently; a failed or incomplete batch simply leaves those descriptions
+ * unset (buildCuratedFromRefs then falls back to the Google summary).
+ */
+async function fillDescriptions(
+  anthropic: ReturnType<typeof createAnthropicClient>,
+  destination: string,
+  selections: PlaceSelection[],
+  refToPlace: Map<string, PlaceCandidate>,
+): Promise<void> {
+  const resolved = selections.filter((s) => refToPlace.has(s.ref?.trim()));
+  if (resolved.length === 0) return;
+
+  const batches: PlaceSelection[][] = [];
+  for (let i = 0; i < resolved.length; i += DESCRIPTION_BATCH_SIZE) {
+    batches.push(resolved.slice(i, i + DESCRIPTION_BATCH_SIZE));
+  }
+
+  const tool: Tool = {
+    name: "save_descriptions",
+    description: "Save a neutral, objective description for each place ref.",
+    input_schema: {
+      type: "object",
+      properties: {
+        descriptions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              ref: { type: "string" },
+              description: { type: "string" },
+            },
+            required: ["ref", "description"],
+          },
+        },
+      },
+      required: ["descriptions"],
+    },
+  };
+
+  const system = `You write neutral, objective, durable descriptions of places in ${destination}. Each description states what the place actually is (e.g. "A 19th-century gothic cathedral known for its stained glass"), not how a specific traveler should use it. Keep each to 1-2 sentences. Reuse the provided Google note as a factual basis when present, but rewrite it cleanly.`;
+
+  const startTime = Date.now();
+  console.log(
+    `[generatePlaces] Generating descriptions for ${resolved.length} places across ${batches.length} parallel batches...`,
+  );
+
+  const batchResults = await Promise.all(
+    batches.map(async (batch) => {
+      const list = batch
+        .map((s) => {
+          const place = refToPlace.get(s.ref.trim())!;
+          const note = place.summary ? ` — Google note: ${place.summary}` : "";
+          const type = place.primaryType ? ` (${place.primaryType})` : "";
+          return `- ref ${s.ref}: ${place.name}${type}${note}`;
+        })
+        .join("\n");
+
+      try {
+        const response = await anthropic.messages.create({
+          model: MODEL,
+          max_tokens: 4096,
+          system,
+          tools: [tool],
+          tool_choice: { type: "tool", name: "save_descriptions" },
+          messages: [
+            {
+              role: "user",
+              content: `Write a neutral description for each place below. Return every ref.\n\n${list}`,
+            },
+          ],
+        });
+
+        const out = new Map<string, string>();
+        for (const block of response.content) {
+          if (block.type === "tool_use" && block.name === "save_descriptions") {
+            const items = (
+              block.input as {
+                descriptions: Array<{ ref: string; description: string }>;
+              }
+            ).descriptions;
+            for (const d of items) out.set(d.ref?.trim(), d.description);
+          }
+        }
+        return out;
+      } catch (error) {
+        // Descriptions are best-effort: any failure (commonly a 429 from the
+        // upstream rate limit) just leaves these refs without a model-written
+        // description, and buildCuratedFromRefs falls back to the Google summary.
+        const status = (error as { status?: number }).status;
+        const reason = status === 429 ? "rate limited (429)" : (error as Error).message;
+        console.warn(
+          `[generatePlaces] Description batch skipped (${reason}); falling back to Google summaries for ${batch.length} place(s).`,
+        );
+        return new Map<string, string>();
+      }
+    }),
+  );
+
+  const byRef = new Map<string, string>();
+  for (const result of batchResults) {
+    for (const [ref, description] of result) byRef.set(ref, description);
+  }
+
+  let filled = 0;
+  for (const s of selections) {
+    const description = byRef.get(s.ref?.trim());
+    if (description) {
+      s.description = description;
+      filled++;
+    }
+  }
+
+  console.log(
+    `[generatePlaces] Descriptions done in ${Date.now() - startTime}ms (${filled}/${resolved.length} written, rest fall back to Google summaries).`,
+  );
 }

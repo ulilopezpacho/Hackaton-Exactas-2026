@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildCuratedFromRefs,
   buildCuratedPlaces,
   computePopularity,
   computeQualityScore,
   normalizeName,
   type CuratedPlace,
+  type PlaceSelection,
 } from "./catalog.ts";
 import type { PlaceCandidate } from "./google.ts";
 
@@ -191,6 +193,115 @@ test("buildCuratedPlaces leaves quality/popularity undefined when Google has no 
 
 test("buildCuratedPlaces returns empty results for an empty selection", () => {
   const { curated, dropped } = buildCuratedPlaces([], new Map());
+  assert.deepEqual(curated, []);
+  assert.deepEqual(dropped, []);
+});
+
+// --- buildCuratedFromRefs -------------------------------------------------
+
+function refSelection(over: Partial<PlaceSelection> & { ref: string }): PlaceSelection {
+  return { category: "culture", defaultDurationMinutes: 90, ...over };
+}
+
+test("buildCuratedFromRefs joins identity and metadata from the ref", () => {
+  const refToPlace = new Map<string, PlaceCandidate>([
+    ["p0", candidate({ externalId: "ChIJ_real", name: "Prado Museum" })],
+  ]);
+
+  const { curated, dropped } = buildCuratedFromRefs(
+    [refSelection({ ref: "p0", description: "A national art museum." })],
+    refToPlace,
+  );
+
+  assert.equal(dropped.length, 0);
+  assert.equal(curated.length, 1);
+  const place = curated[0];
+  // Curation fields from the model are preserved.
+  assert.equal(place.description, "A national art museum.");
+  assert.equal(place.category, "culture");
+  assert.equal(place.defaultDurationMinutes, 90);
+  // Identity + metadata come from the cached Google candidate.
+  assert.equal(place.externalId, "ChIJ_real");
+  assert.equal(place.name, "Prado Museum");
+  assert.equal(place.address, "Somewhere");
+  assert.equal(place.rating, 4.6);
+  assert.equal(place.qualityScore, computeQualityScore(4.6, 1200));
+  assert.equal(place.popularity, computePopularity(1200));
+});
+
+test("buildCuratedFromRefs trims the ref before matching", () => {
+  const refToPlace = new Map<string, PlaceCandidate>([
+    ["p3", candidate({ externalId: "ChIJ_real", name: "Prado" })],
+  ]);
+  const { curated, dropped } = buildCuratedFromRefs(
+    [refSelection({ ref: "  p3  " })],
+    refToPlace,
+  );
+  assert.equal(dropped.length, 0);
+  assert.equal(curated[0].externalId, "ChIJ_real");
+});
+
+test("buildCuratedFromRefs falls back to the Google summary when no description was written", () => {
+  const refToPlace = new Map<string, PlaceCandidate>([
+    ["p0", candidate({ externalId: "ChIJ_real", name: "Prado", summary: "A famous museum." })],
+  ]);
+  const { curated } = buildCuratedFromRefs(
+    [refSelection({ ref: "p0", description: undefined })],
+    refToPlace,
+  );
+  assert.equal(curated[0].description, "A famous museum.");
+});
+
+test("buildCuratedFromRefs leaves description empty when neither model nor Google provide one", () => {
+  const refToPlace = new Map<string, PlaceCandidate>([
+    ["p0", candidate({ externalId: "ChIJ_real", name: "Quiet Park", summary: undefined })],
+  ]);
+  const { curated } = buildCuratedFromRefs([refSelection({ ref: "p0" })], refToPlace);
+  assert.equal(curated[0].description, "");
+});
+
+test("buildCuratedFromRefs drops refs that match no searched result", () => {
+  const refToPlace = new Map<string, PlaceCandidate>([
+    ["p0", candidate({ externalId: "ChIJ_real", name: "Prado" })],
+  ]);
+  const { curated, dropped } = buildCuratedFromRefs(
+    [refSelection({ ref: "p0" }), refSelection({ ref: "p99" })],
+    refToPlace,
+  );
+  assert.equal(curated.length, 1);
+  assert.equal(curated[0].externalId, "ChIJ_real");
+  assert.deepEqual(dropped, ["p99"]);
+});
+
+test("buildCuratedFromRefs collapses the same ref selected twice", () => {
+  const refToPlace = new Map<string, PlaceCandidate>([
+    ["p0", candidate({ externalId: "ChIJ_real", name: "Prado" })],
+  ]);
+  const { curated } = buildCuratedFromRefs(
+    [refSelection({ ref: "p0" }), refSelection({ ref: "p0" })],
+    refToPlace,
+  );
+  assert.equal(curated.length, 1);
+});
+
+test("buildCuratedFromRefs collapses two refs that resolve to the same place", () => {
+  // Distinct refs can point at the same Google place; the upsert key is the
+  // externalId, so only the first must survive.
+  const place = candidate({ externalId: "ChIJ_real", name: "Prado" });
+  const refToPlace = new Map<string, PlaceCandidate>([
+    ["p0", place],
+    ["p1", place],
+  ]);
+  const { curated } = buildCuratedFromRefs(
+    [refSelection({ ref: "p0" }), refSelection({ ref: "p1" })],
+    refToPlace,
+  );
+  assert.equal(curated.length, 1);
+  assert.equal(curated[0].externalId, "ChIJ_real");
+});
+
+test("buildCuratedFromRefs returns empty results for an empty selection", () => {
+  const { curated, dropped } = buildCuratedFromRefs([], new Map());
   assert.deepEqual(curated, []);
   assert.deepEqual(dropped, []);
 });
