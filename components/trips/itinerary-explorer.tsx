@@ -300,11 +300,17 @@ export function ItineraryExplorer({
 
       <Tabs defaultValue="list">
         <TabsList className="w-full rounded-full sm:w-72">
-          <TabsTrigger value="list">
+          <TabsTrigger
+            className="data-active:bg-white data-active:shadow-sm"
+            value="list"
+          >
             <ListIcon data-icon="inline-start" />
             Lista
           </TabsTrigger>
-          <TabsTrigger value="map">
+          <TabsTrigger
+            className="data-active:bg-white data-active:shadow-sm"
+            value="map"
+          >
             <MapIcon data-icon="inline-start" />
             Mapa
           </TabsTrigger>
