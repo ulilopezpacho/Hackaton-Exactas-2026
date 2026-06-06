@@ -122,7 +122,7 @@ Instructions:
 
   while (stopReason !== "tool_use" || curatedPlaces.length === 0) {
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-haiku-4-5",
       max_tokens: 4096,
       system: systemPrompt,
       tools,
@@ -140,22 +140,34 @@ Instructions:
         type: "tool_result";
         tool_use_id: string;
         content: string;
+        is_error?: boolean;
       }> = [];
       let saved = false;
 
       for (const block of response.content) {
         if (block.type === "tool_use") {
+          console.log(`[Agent] Calling tool: ${block.name} (ID: ${block.id})`);
+          
           if (block.name === "search_places") {
-            const results = await searchPlaces({
-              query: (block.input as { query: string }).query,
-              latBias: input.lat,
-              lngBias: input.lng,
-            });
-            toolResults.push({
-              type: "tool_result",
-              tool_use_id: block.id,
-              content: JSON.stringify(results),
-            });
+            try {
+              const results = await searchPlaces({
+                query: (block.input as { query: string }).query,
+                latBias: input.lat,
+                lngBias: input.lng,
+              });
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: JSON.stringify(results),
+              });
+            } catch (error) {
+              toolResults.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: `Error searching places: ${error instanceof Error ? error.message : String(error)}`,
+                is_error: true,
+              });
+            }
           } else if (block.name === "save_places") {
             curatedPlaces = (block.input as { places: CuratedPlace[] }).places;
             toolResults.push({
@@ -164,11 +176,22 @@ Instructions:
               content: "Places saved successfully.",
             });
             saved = true;
+          } else {
+            // Handle unexpected tool calls
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: `Error: Unknown tool "${block.name}". Available tools: search_places, save_places.`,
+              is_error: true,
+            });
           }
         }
       }
 
-      messages.push({ role: "user", content: toolResults });
+      if (toolResults.length > 0) {
+        messages.push({ role: "user", content: toolResults });
+      }
+
       if (saved) break;
     } else {
       if (curatedPlaces.length === 0) {
