@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type TripStatus = "draft" | "upcoming" | "completed";
+type TripFilter = "all" | TripStatus;
 
 type Trip = {
   actionHref: string;
@@ -96,9 +97,43 @@ const statusCopy: Record<
   },
 };
 
-const filters = ["Todos", "Borradores", "Próximos", "Completados"];
+const filters: {
+  href: string;
+  label: string;
+  value: TripFilter;
+}[] = [
+  { href: "/app/trips", label: "Todos", value: "all" },
+  { href: "/app/trips?estado=borradores", label: "Borradores", value: "draft" },
+  { href: "/app/trips?estado=proximos", label: "Próximos", value: "upcoming" },
+  { href: "/app/trips?estado=completados", label: "Completados", value: "completed" },
+];
 
-export default function TripsPage() {
+const filterByParam: Record<string, TripFilter> = {
+  borradores: "draft",
+  completados: "completed",
+  proximos: "upcoming",
+};
+
+function formatCount(count: number, filter: TripFilter) {
+  if (filter === "draft") return `${count} ${count === 1 ? "borrador" : "borradores"}`;
+  if (filter === "upcoming") return `${count} ${count === 1 ? "próximo" : "próximos"}`;
+  if (filter === "completed") return `${count} ${count === 1 ? "completado" : "completados"}`;
+
+  return `${count} ${count === 1 ? "viaje" : "viajes"}`;
+}
+
+export default async function TripsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ estado?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const rawFilter = Array.isArray(params.estado) ? params.estado[0] : params.estado;
+  const activeFilter = rawFilter ? filterByParam[rawFilter] ?? "all" : "all";
+  const visibleTrips = activeFilter === "all"
+    ? trips
+    : trips.filter((trip) => trip.status === activeFilter);
+
   return (
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -114,14 +149,15 @@ export default function TripsPage() {
       </div>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {filters.map((filter, index) => (
+        {filters.map((filter) => (
           <Button
             className="shrink-0 rounded-full"
-            key={filter}
+            key={filter.value}
+            render={<Link href={filter.href} />}
             size="sm"
-            variant={index === 0 ? "default" : "outline"}
+            variant={activeFilter === filter.value ? "default" : "outline"}
           >
-            {filter}
+            {filter.label}
           </Button>
         ))}
       </div>
@@ -132,10 +168,12 @@ export default function TripsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-foreground">
               Tus viajes
             </p>
-            <p className="text-sm font-medium text-muted-foreground">1 borrador</p>
+            <p className="text-sm font-medium text-muted-foreground">
+              {formatCount(visibleTrips.length, activeFilter)}
+            </p>
           </div>
 
-          {trips.map((trip) => {
+          {visibleTrips.map((trip) => {
             const status = statusCopy[trip.status];
             const isDraft = trip.status === "draft";
 
