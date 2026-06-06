@@ -15,6 +15,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
   - anonymous users go to `/auth/login`.
 - Keep the mock split into real Next pages so teammates can work independently:
   - `/app`
+  - `/app/onboarding`
   - `/app/trips`
   - `/app/trips/new/destination`
   - `/app/trips/new/places`
@@ -46,6 +47,8 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/auth/sign-up`: functional Supabase email/password signup.
 - `/auth/callback`: functional Supabase auth-code exchange.
 - `/app/layout.tsx`: functional private shell; protects `/app/...` routes and provides logout.
+- `/app/onboarding`: functional required preferences onboarding.
+- `/app/profile/preferences`: functional saved preferences editor.
 
 ### Mocked
 
@@ -60,5 +63,4 @@ Use this list as the source of truth when replacing mock pages with functional p
 - `/app/trips/[tripId]/itinerary/[dayNumber]`: mocked day detail.
 - `/app/trips/[tripId]/travel`: mocked travel mode and replanning actions.
 - `/app/trips/[tripId]/settings`: mocked trip settings.
-- `/app/profile`: partially functional session read, mocked profile data beyond email/id.
-- `/app/profile/preferences`: mocked saved preferences.
+- `/app/profile`: partially functional session read and saved preferences summary.

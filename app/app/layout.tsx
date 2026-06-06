@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
+import { ProfileMenu } from "@/components/app/profile-menu";
 import { createClient } from "@/utils/supabase/server";
 
 import { signOut } from "./actions";
@@ -20,6 +20,9 @@ export default async function AppLayout({
     redirect("/auth/login");
   }
 
+  const profileName = String(user.user_metadata.name ?? user.user_metadata.full_name ?? user.email ?? "R");
+  const initial = profileName.trim().charAt(0).toUpperCase() || "R";
+
   return (
     <main className="min-h-screen bg-background text-foreground">
       <header className="border-b bg-card/80">
@@ -28,17 +31,7 @@ export default async function AppLayout({
             Rumbo
           </Link>
           <nav className="flex items-center gap-3 text-sm font-medium">
-            <Link className="text-muted-foreground hover:text-foreground" href="/app/trips">
-              Viajes
-            </Link>
-            <Link className="text-muted-foreground hover:text-foreground" href="/app/profile">
-              Perfil
-            </Link>
-            <form action={signOut}>
-              <Button size="sm" type="submit" variant="outline">
-                Salir
-              </Button>
-            </form>
+            <ProfileMenu initial={initial} signOutAction={signOut} />
           </nav>
         </div>
       </header>

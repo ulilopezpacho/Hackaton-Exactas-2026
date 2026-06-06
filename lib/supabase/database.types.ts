@@ -9,21 +9,39 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      todos: {
+      user_preferences: {
         Row: {
+          budget: "under_50" | "50_100" | "100_200" | "over_200" | null;
           created_at: string;
-          id: number;
-          name: string;
+          interests: string[];
+          onboarding_completed_at: string | null;
+          onboarding_step: "interests" | "pace" | "prompt" | "budget" | "complete";
+          pace: "relaxed" | "balanced" | "intense" | null;
+          travel_style_prompt: string | null;
+          updated_at: string;
+          user_id: string;
         };
         Insert: {
+          budget?: "under_50" | "50_100" | "100_200" | "over_200" | null;
           created_at?: string;
-          id?: number;
-          name: string;
+          interests?: string[];
+          onboarding_completed_at?: string | null;
+          onboarding_step?: "interests" | "pace" | "prompt" | "budget" | "complete";
+          pace?: "relaxed" | "balanced" | "intense" | null;
+          travel_style_prompt?: string | null;
+          updated_at?: string;
+          user_id: string;
         };
         Update: {
+          budget?: "under_50" | "50_100" | "100_200" | "over_200" | null;
           created_at?: string;
-          id?: number;
-          name?: string;
+          interests?: string[];
+          onboarding_completed_at?: string | null;
+          onboarding_step?: "interests" | "pace" | "prompt" | "budget" | "complete";
+          pace?: "relaxed" | "balanced" | "intense" | null;
+          travel_style_prompt?: string | null;
+          updated_at?: string;
+          user_id?: string;
         };
         Relationships: [];
       };
