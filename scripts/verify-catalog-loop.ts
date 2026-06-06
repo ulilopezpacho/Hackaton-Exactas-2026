@@ -2,7 +2,7 @@
  * Verification script for the Places Catalog Loop.
  * 
  * Usage:
- * 1. Ensure .env.local has GOOGLE_PLACES_API_KEY and ANTHROPIC_API_KEY.
+ * 1. Ensure .env.local has GOOGLE_MAPS_API_KEY and ANTHROPIC_API_KEY.
  * 2. Run with: npx tsx scripts/verify-catalog-loop.ts
  */
 

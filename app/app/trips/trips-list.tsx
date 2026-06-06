@@ -129,7 +129,7 @@ export function TripsList({ trips }: { trips: TripOverview[] }) {
                   "transition [--card-spacing:0px] hover:-translate-y-0.5 hover:ring-primary/30",
                   isDraft && "bg-secondary/35 hover:ring-muted-foreground/20",
                 )}
-                key={trip.city}
+                key={trip.id}
               >
                 <CardContent className="grid p-0 sm:grid-cols-[7rem_1fr]">
                   <div

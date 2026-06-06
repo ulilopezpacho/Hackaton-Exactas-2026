@@ -24,6 +24,7 @@ export type Database = {
           ends_on: string;
           id: string;
           owner_id: string;
+          route_customization_prompt: string | null;
           starts_on: string;
           status: string;
           timezone: string;
@@ -42,6 +43,7 @@ export type Database = {
           ends_on: string;
           id?: string;
           owner_id: string;
+          route_customization_prompt?: string | null;
           starts_on: string;
           status?: string;
           timezone?: string;
@@ -181,7 +183,12 @@ export type Database = {
           budget: "under_50" | "50_100" | "100_200" | "over_200" | null;
           interests: string[];
           onboarding_completed_at: string | null;
-          onboarding_step: "interests" | "pace" | "prompt" | "budget" | "complete";
+          onboarding_step:
+            | "interests"
+            | "pace"
+            | "prompt"
+            | "budget"
+            | "complete";
           pace: "relaxed" | "balanced" | "intense" | null;
           travel_style_prompt: string | null;
           user_id: string;
@@ -191,7 +198,12 @@ export type Database = {
           created_at?: string;
           interests?: string[];
           onboarding_completed_at?: string | null;
-          onboarding_step?: "interests" | "pace" | "prompt" | "budget" | "complete";
+          onboarding_step?:
+            | "interests"
+            | "pace"
+            | "prompt"
+            | "budget"
+            | "complete";
           pace?: "relaxed" | "balanced" | "intense" | null;
           travel_style_prompt?: string | null;
           updated_at?: string;

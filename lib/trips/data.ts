@@ -142,6 +142,7 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
       "id,day_number,title,status,itinerary_type,generated_from_itinerary_id,created_at",
     )
     .eq("trip_id", trip.id)
+    .in("status", ["active", "draft"])
     .order("day_number");
 
   if (itineraryError) {

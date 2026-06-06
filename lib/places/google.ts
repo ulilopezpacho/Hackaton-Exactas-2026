@@ -19,8 +19,15 @@ export interface DestinationCandidate {
   description?: string;
 }
 
+export interface CitySuggestion {
+  placeId: string;
+  primaryText: string;
+  secondaryText: string;
+  text: string;
+}
+
 // ---------------------------------------------------------------------------
-// Mock data — used when GOOGLE_PLACES_API_KEY is not set
+// Mock data — used when GOOGLE_MAPS_API_KEY is not set
 // ---------------------------------------------------------------------------
 
 const MOCK_DESTINATIONS: Record<string, DestinationCandidate> = {
@@ -130,7 +137,83 @@ function mockResolveDestination(query: string): DestinationCandidate | null {
 // ---------------------------------------------------------------------------
 
 function getApiKey(): string | null {
-  return process.env.GOOGLE_PLACES_API_KEY ?? null;
+  return process.env.GOOGLE_MAPS_API_KEY ?? null;
+}
+
+export async function searchCities({
+  query,
+  sessionToken,
+}: {
+  query: string;
+  sessionToken: string;
+}): Promise<CitySuggestion[]> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return Object.values(MOCK_DESTINATIONS)
+      .filter((destination) =>
+        destination.name.toLowerCase().includes(query.toLowerCase()),
+      )
+      .slice(0, 5)
+      .map((destination) => ({
+        placeId: destination.externalId,
+        primaryText: destination.name,
+        secondaryText: [destination.adminArea, destination.country]
+          .filter(Boolean)
+          .join(", "),
+        text: [destination.name, destination.adminArea, destination.country]
+          .filter(Boolean)
+          .join(", "),
+      }));
+  }
+
+  const response = await fetch("https://places.googleapis.com/v1/places:autocomplete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": apiKey,
+      "X-Goog-FieldMask":
+        "suggestions.placePrediction.placeId,suggestions.placePrediction.text.text,suggestions.placePrediction.structuredFormat.mainText.text,suggestions.placePrediction.structuredFormat.secondaryText.text",
+    },
+    body: JSON.stringify({
+      includedPrimaryTypes: ["(cities)"],
+      input: query,
+      languageCode: "es",
+      sessionToken,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Google Places API error: ${response.status} ${error}`);
+  }
+
+  const data = (await response.json()) as {
+    suggestions?: Array<{
+      placePrediction?: {
+        placeId?: string;
+        structuredFormat?: {
+          mainText?: { text?: string };
+          secondaryText?: { text?: string };
+        };
+        text?: { text?: string };
+      };
+    }>;
+  };
+
+  return (data.suggestions ?? [])
+    .map((suggestion) => suggestion.placePrediction)
+    .filter((prediction): prediction is NonNullable<typeof prediction> =>
+      Boolean(prediction?.placeId && prediction.text?.text),
+    )
+    .map((prediction) => ({
+      placeId: prediction.placeId ?? "",
+      primaryText:
+        prediction.structuredFormat?.mainText?.text ??
+        prediction.text?.text ??
+        "",
+      secondaryText: prediction.structuredFormat?.secondaryText?.text ?? "",
+      text: prediction.text?.text ?? "",
+    }));
 }
 
 export async function searchPlaces({
@@ -256,5 +339,55 @@ export async function resolveDestination(
     lat: place.location?.latitude ?? 0,
     lng: place.location?.longitude ?? 0,
     description: place.editorialSummary?.text,
+  };
+}
+
+export async function getPlaceById(placeId: string): Promise<PlaceCandidate> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    const mockPlace = Object.values(MOCK_PLACES_BY_CATEGORY)
+      .flat()
+      .find((place) => place.externalId === placeId);
+
+    if (mockPlace) return mockPlace;
+
+    throw new Error(`Place not found: ${placeId}`);
+  }
+
+  const response = await fetch(
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`,
+    {
+      headers: {
+        "X-Goog-Api-Key": apiKey,
+        "X-Goog-FieldMask":
+          "id,displayName,formattedAddress,location,primaryType,types,editorialSummary",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Google Places API error: ${response.status} ${error}`);
+  }
+
+  const place = (await response.json()) as {
+    id: string;
+    displayName?: { text: string };
+    formattedAddress?: string;
+    location?: { latitude: number; longitude: number };
+    primaryType?: string;
+    types?: string[];
+    editorialSummary?: { text: string };
+  };
+
+  return {
+    address: place.formattedAddress || "",
+    externalId: place.id,
+    lat: place.location?.latitude ?? 0,
+    lng: place.location?.longitude ?? 0,
+    name: place.displayName?.text || "",
+    primaryType: place.primaryType,
+    summary: place.editorialSummary?.text,
+    types: place.types,
   };
 }
