@@ -92,7 +92,6 @@ async function getPreferences() {
     .maybeSingle();
 
   if (error) {
-    console.error("Could not load onboarding preferences", error);
     return { error: "No pudimos cargar tus preferencias. Revisá que la migración de onboarding esté aplicada." };
   }
 
@@ -107,7 +106,6 @@ async function getPreferences() {
     .single();
 
   if (createError) {
-    console.error("Could not create onboarding preferences", createError);
     return { error: "No pudimos iniciar el onboarding. Revisá que la migración de preferencias esté aplicada." };
   }
 

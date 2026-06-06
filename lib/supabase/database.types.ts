@@ -52,6 +52,7 @@ export type Database = {
           trip_id: string;
         };
         Insert: {
+          created_at?: string;
           day_number?: number;
           generated_from_itinerary_id?: string | null;
           generation_prompt?: string | null;

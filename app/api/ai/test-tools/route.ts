@@ -49,10 +49,11 @@ export async function POST(request: Request) {
       content: message.content,
     });
   } catch (error) {
+    console.error("Anthropic test-tools route failed", error);
     return Response.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown Anthropic error",
+        error: "No se pudo completar la prueba de herramientas de IA.",
       },
       { status: 500 },
     );
