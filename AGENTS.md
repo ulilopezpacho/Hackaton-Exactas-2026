@@ -77,7 +77,7 @@ Use this list as the source of truth when replacing mock pages with functional p
 ### Places & Destination Logic (`lib/places/`)
 
 - **`google.ts`**: Core wrapper for Google Places API (New).
-  - `searchPlaces({ query, latBias, lngBias })`: Returns `PlaceCandidate[]`. Mocked if API key is missing.
+  - `searchPlaces({ query, latBias, lngBias })`: Returns `PlaceCandidate[]`. Requires `GOOGLE_MAPS_API_KEY`; throws if it is missing.
   - `resolveDestination(query)`: Resolves destination name to coordinates and administrative metadata.
 - **`generatePlaces(input)`**: Higher-level AI orchestrator. Uses Claude to curate 15-25 places matching user preferences and destination context.
 

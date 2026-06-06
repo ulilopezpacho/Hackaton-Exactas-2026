@@ -58,7 +58,7 @@ export async function POST(
     .eq("user_id", user.id)
     .maybeSingle();
 
-  // 4. Resolve and Insert Destination
+  // 4. Resolve and Upsert Destination
   const destinationCandidate = await resolveDestination(destinationText);
   if (!destinationCandidate) {
     return Response.json(
@@ -69,8 +69,8 @@ export async function POST(
 
   const { data: destination, error: destError } = await supabase
     .from("destinations")
-    .insert({
-      owner_id: user.id,
+    .upsert({
+      owner_id: null, // Shared catalog row
       source: "google",
       external_id: destinationCandidate.externalId,
       name: destinationCandidate.name,
@@ -79,6 +79,8 @@ export async function POST(
       description: destinationCandidate.description,
       location: `SRID=4326;POINT(${destinationCandidate.lng} ${destinationCandidate.lat})`,
       status: "active",
+    }, {
+      onConflict: "external_id"
     })
     .select("id, name")
     .single();
@@ -110,24 +112,33 @@ export async function POST(
     lng: destinationCandidate.lng,
   });
 
-  // 6. Map and Insert Places
-  const placesToInsert = curated.map((p) => ({
-    owner_id: user.id,
+  // 6. Map and Upsert Places
+  const placesToUpsert = curated.map((p) => ({
+    owner_id: null, // Shared catalog row
     destination_id: destination.id,
     source: "google",
     external_id: p.externalId,
     name: p.name,
-    description: p.description,
+    description: p.description, // Neutral description for catalog
     category: p.category,
     address: p.address,
     location: `SRID=4326;POINT(${p.lng} ${p.lat})`,
     default_duration_minutes: p.defaultDurationMinutes,
+    primary_type: p.primaryType,
+    types: p.types,
+    summary: p.summary,
+    rating: p.rating,
+    user_ratings_total: p.userRatingsTotal,
+    quality_score: p.qualityScore,
+    popularity: p.popularity,
     status: "active",
   }));
 
   const { data: insertedPlaces, error: placesError } = await supabase
     .from("places")
-    .insert(placesToInsert)
+    .upsert(placesToUpsert, {
+      onConflict: "destination_id,external_id"
+    })
     .select();
 
   if (placesError) {
