@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
   GripVerticalIcon,
+  LoaderCircleIcon,
   PlusIcon,
   SearchIcon,
   SparklesIcon,
@@ -62,6 +63,7 @@ export function TripPlacesForm({
   const [places, setPlaces] = useState<PlaceDraft[]>([]);
   const [notes, setNotes] = useState(initialNotes);
   const [message, setMessage] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const payload = useMemo(
@@ -78,39 +80,65 @@ export function TripPlacesForm({
     [notes, places, trip],
   );
 
-  async function searchPlaces(nextQuery: string) {
+  useEffect(() => {
+    const normalizedQuery = query.trim();
+
+    if (normalizedQuery.length < 2) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(async () => {
+      setIsSearching(true);
+
+      try {
+        const params = new URLSearchParams({
+          q: normalizedQuery,
+          sessionToken: sessionToken.current,
+        });
+        const response = await fetch(`/api/places/autocomplete?${params}`, {
+          signal: controller.signal,
+        });
+        const body = (await response.json()) as {
+          error?: string;
+          suggestions?: PlaceSuggestion[];
+        };
+
+        if (!response.ok) {
+          throw new Error(body.error ?? "No pudimos buscar lugares.");
+        }
+
+        setSuggestions(body.suggestions ?? []);
+        setMessage(null);
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setSuggestions([]);
+          setMessage(
+            error instanceof Error
+              ? `${error.message} Podés agregar el lugar manualmente.`
+              : "Podés agregar el lugar manualmente.",
+          );
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsSearching(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, [query]);
+
+  function updateQuery(nextQuery: string) {
     setQuery(nextQuery);
 
     if (nextQuery.trim().length < 2) {
       setSuggestions([]);
       setMessage(null);
-      return;
-    }
-
-    try {
-      const params = new URLSearchParams({
-        q: nextQuery,
-        sessionToken: sessionToken.current,
-      });
-      const response = await fetch(`/api/places/autocomplete?${params}`);
-      const body = (await response.json()) as {
-        error?: string;
-        suggestions?: PlaceSuggestion[];
-      };
-
-      if (!response.ok) {
-        throw new Error(body.error ?? "No pudimos buscar lugares.");
-      }
-
-      setSuggestions(body.suggestions ?? []);
-      setMessage(null);
-    } catch (error) {
-      setSuggestions([]);
-      setMessage(
-        error instanceof Error
-          ? `${error.message} Podés agregar el lugar manualmente.`
-          : "Podés agregar el lugar manualmente.",
-      );
+      setIsSearching(false);
     }
   }
 
@@ -214,8 +242,8 @@ export function TripPlacesForm({
             ¿Qué querés ver en {trip.title}?
           </CardTitle>
           <CardDescription className="max-w-2xl">
-            Sumá los lugares que te interesan y ordenalos según qué tan
-            importantes son para este viaje.
+            Contanos qué tipo de viaje querés. Si ya tenés lugares en mente,
+            podés sumarlos como referencias opcionales.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -225,10 +253,13 @@ export function TripPlacesForm({
               <Input
                 autoComplete="off"
                 className="h-11 border-0 px-0 shadow-none focus-visible:ring-0"
-                onChange={(event) => void searchPlaces(event.target.value)}
-                placeholder="Buscá o escribí un lugar..."
+                onChange={(event) => updateQuery(event.target.value)}
+                placeholder="Agregar un lugar opcional..."
                 value={query}
               />
+              {isSearching ? (
+                <LoaderCircleIcon className="size-4 animate-spin text-muted-foreground" />
+              ) : null}
               <Button
                 disabled={!query.trim()}
                 onClick={addManualPlace}
@@ -304,7 +335,8 @@ export function TripPlacesForm({
 
         {places.length === 0 ? (
           <div className="rounded-xl border border-dashed bg-card px-6 py-10 text-center text-sm text-muted-foreground">
-            Tu lista está vacía. Buscá un lugar o agregalo manualmente.
+            No agregaste lugares, y está bien. El generador va a descubrirlos
+            usando tu prompt y tus preferencias.
           </div>
         ) : (
           places.map((place, index) => (
@@ -362,7 +394,7 @@ export function TripPlacesForm({
       <div className="sticky bottom-0 -mx-5 flex items-center gap-4 border-t bg-background/85 px-5 py-4 backdrop-blur">
         <div className="min-w-24">
           <p className="text-xl font-semibold">
-            {places.length} prioridades
+            {places.length} {places.length === 1 ? "lugar opcional" : "lugares opcionales"}
           </p>
           <p className="text-xs text-muted-foreground">
             {trip.startsOn} · {trip.endsOn}
@@ -370,7 +402,6 @@ export function TripPlacesForm({
         </div>
         <Button
           className="h-12 flex-1"
-          disabled={places.length === 0}
           type="submit"
         >
           <SparklesIcon data-icon="inline-start" />

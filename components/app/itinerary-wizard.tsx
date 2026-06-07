@@ -14,7 +14,7 @@ interface Step {
 
 const STEPS: Step[] = [
   { id: "catalog", label: "Descubriendo lugares en el destino" },
-  { id: "reading", label: "Leyendo tus lugares" },
+  { id: "reading", label: "Leyendo tus preferencias" },
   { id: "ordering", label: "Ordenando por cercanía y horarios" },
   { id: "calculating", label: "Calculando trayectos a pie" },
   { id: "filling", label: "Rellenando los huecos libres" },

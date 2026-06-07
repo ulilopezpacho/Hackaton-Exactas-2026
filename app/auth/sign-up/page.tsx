@@ -21,7 +21,7 @@ export default async function SignUpPage({ searchParams }: SignUpPageProps) {
       description="Creá tu usuario para guardar viajes e itinerarios."
       error={params.error}
       next={params.next}
-      title="Sign up"
+      title="Empezá a planear"
     />
   );
 }

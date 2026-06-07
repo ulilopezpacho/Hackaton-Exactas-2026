@@ -27,7 +27,6 @@ type WizardDraftPayload = {
 };
 
 type PlaceInsert = Database["public"]["Tables"]["places"]["Insert"];
-type ItineraryItemInsert = Database["public"]["Tables"]["itinerary_items"]["Insert"];
 
 export async function createTripDraft(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
@@ -75,7 +74,7 @@ export async function createTripDraft(formData: FormData) {
 export async function saveTripGenerationContext(formData: FormData) {
   const payloadValue = String(formData.get("payload") ?? "");
   const payload = parseWizardDraftPayload(payloadValue);
-  const range = parseTripDates(payload.startsOn, payload.endsOn);
+  parseTripDates(payload.startsOn, payload.endsOn);
 
   const supabase = await createClient();
   const {
@@ -107,65 +106,14 @@ export async function saveTripGenerationContext(formData: FormData) {
     .eq("id", payload.tripId)
     .eq("owner_id", user.id);
 
-  // We still need to upsert places and create a tentative itinerary 
-  // so the Wizard can fetch the place IDs and run the solver.
   const places = await upsertPlaces(payload.places, user.id);
+  const params = new URLSearchParams({ tripId: payload.tripId });
 
-  const { data: existingItineraries } = await supabase
-    .from("itineraries")
-    .select("id")
-    .eq("trip_id", payload.tripId)
-    .eq("itinerary_type", "wizard_tentative");
-
-  const existingIds = existingItineraries?.map(({ id }) => id) ?? [];
-
-  if (existingIds.length > 0) {
-    await supabase.from("itinerary_items").delete().in("itinerary_id", existingIds);
-    await supabase.from("itineraries").delete().in("id", existingIds);
+  for (const place of places) {
+    params.append("placeId", place.id);
   }
 
-  const dayInserts = Array.from({ length: range.dayCount }, (_, index) => ({
-    day_number: index + 1,
-    itinerary_type: "wizard_tentative",
-    status: "draft" as const,
-    title: `Día ${index + 1}`,
-    trip_id: payload.tripId,
-  }));
-  
-  const { data: itineraries, error: itineraryError } = await supabase
-    .from("itineraries")
-    .insert(dayInserts)
-    .select("id, day_number");
-
-  if (itineraryError || !itineraries) {
-    redirect(`/app/trips/new/places?tripId=${payload.tripId}&error=itinerary`);
-  }
-
-  // For simplicity and to satisfy the Wizard's need for place IDs, 
-  // we just put all places in day 1 of the tentative itinerary.
-  const itemInserts: ItineraryItemInsert[] = payload.places.map((place, index) => ({
-    description: null,
-    ends_at: `${payload.startsOn}T10:30:00Z`,
-    itinerary_id: itineraries[0].id,
-    item_type: "place",
-    locked: false,
-    place_id: places[index]?.id ?? null,
-    position: index,
-    starts_at: `${payload.startsOn}T09:00:00Z`,
-    title: place.name,
-  }));
-
-  if (itemInserts.length > 0) {
-    const { error: itemsError } = await supabase
-      .from("itinerary_items")
-      .insert(itemInserts);
-
-    if (itemsError) {
-      redirect(`/app/trips/new/places?tripId=${payload.tripId}&error=items`);
-    }
-  }
-
-  redirect(`/app/trips/new/generating?tripId=${payload.tripId}`);
+  redirect(`/app/trips/new/generating?${params}`);
 }
 
 function parseWizardDraftPayload(value: string): WizardDraftPayload {
@@ -289,7 +237,7 @@ async function upsertPlaces(places: WizardPlacePayload[], userId: string) {
 }
 
 function buildCustomizationPrompt(payload: WizardDraftPayload) {
-  const notes = payload.notes || `El usuario no agregó notas libres.`;
+  const notes = payload.notes.trim();
   const priorityText = payload.places
     .map((place, index) => {
       const details = [place.address, place.category]
@@ -301,5 +249,12 @@ function buildCustomizationPrompt(payload: WizardDraftPayload) {
     })
     .join("\n");
 
-  return `${notes}\n\nLugares priorizados por el usuario para que el LLM los considere al armar el plan final:\n${priorityText}`;
+  if (!priorityText) {
+    return notes || null;
+  }
+
+  const prioritySection =
+    `Lugares opcionales priorizados por el usuario para que el LLM los considere al armar el plan final:\n${priorityText}`;
+
+  return notes ? `${notes}\n\n${prioritySection}` : prioritySection;
 }

@@ -5,11 +5,11 @@ import { createClient } from "@/utils/supabase/server";
 import { ItineraryWizard } from "@/components/app/itinerary-wizard";
 
 type GeneratingPageProps = {
-  searchParams: Promise<{ tripId?: string }>;
+  searchParams: Promise<{ placeId?: string | string[]; tripId?: string }>;
 };
 
 export default async function GeneratingPage({ searchParams }: GeneratingPageProps) {
-  const { tripId } = await searchParams;
+  const { placeId, tripId } = await searchParams;
 
   if (!tripId) {
     redirect("/app/trips/new/destination");
@@ -27,22 +27,9 @@ export default async function GeneratingPage({ searchParams }: GeneratingPagePro
     redirect("/app/trips/new/destination?error=missing-trip");
   }
 
-  // Fetch the place IDs from the tentative itinerary items
-  const { data: itineraries } = await supabase
-    .from("itineraries")
-    .select("id")
-    .eq("trip_id", tripId)
-    .eq("itinerary_type", "wizard_tentative");
-
-  const itineraryIds = itineraries?.map((i) => i.id) ?? [];
-  
-  const { data: items } = await supabase
-    .from("itinerary_items")
-    .select("place_id")
-    .in("itinerary_id", itineraryIds)
-    .not("place_id", "is", null);
-
-  const placeIds = Array.from(new Set((items ?? []).map((i) => i.place_id as string)));
+  const placeIds = Array.from(
+    new Set(typeof placeId === "string" ? [placeId] : placeId ?? []),
+  );
   const dayCount = differenceInDays(parseISO(trip.ends_on), parseISO(trip.starts_on)) + 1;
 
   return (

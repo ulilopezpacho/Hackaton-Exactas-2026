@@ -114,16 +114,24 @@ export async function generateItinerary(
         `[generateItinerary] Querying priorities + ${categoryFilter.categories.length} matched categories ` +
           `(activities: [${categoryFilter.activity.join(", ")}], meals: [${categoryFilter.meal.join(", ")}])`
       );
-      placesQuery = placesQuery.or(
-        `id.in.(${placeIds.join(",")}),and(destination_id.eq.${tripData.destination_id},category.in.(${toInList(categoryFilter.categories)}))`
-      );
+      const destinationFilter =
+        `and(destination_id.eq.${tripData.destination_id},category.in.(${toInList(categoryFilter.categories)}))`;
+      placesQuery = placeIds.length > 0
+        ? placesQuery.or(`id.in.(${placeIds.join(",")}),${destinationFilter}`)
+        : placesQuery.or(destinationFilter);
     } else {
       console.log(`[generateItinerary] No category match; querying priorities + full destination ${tripData.destination_id} catalog`);
-      placesQuery = placesQuery.or(`id.in.(${placeIds.join(",")}),destination_id.eq.${tripData.destination_id}`);
+      placesQuery = placeIds.length > 0
+        ? placesQuery.or(`id.in.(${placeIds.join(",")}),destination_id.eq.${tripData.destination_id}`)
+        : placesQuery.eq("destination_id", tripData.destination_id);
     }
   } else {
     console.log(`[generateItinerary] Querying only priorities (no destination ID found)`);
-    placesQuery = placesQuery.in("id", placeIds);
+    if (placeIds.length > 0) {
+      placesQuery = placesQuery.in("id", placeIds);
+    } else {
+      throw new Error("Trip destination is missing and no optional places were selected.");
+    }
   }
 
   const { data: placesRaw, error: placesError } = await placesQuery;
