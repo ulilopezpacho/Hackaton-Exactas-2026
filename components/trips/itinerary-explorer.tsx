@@ -196,6 +196,13 @@ function Timeline({ day }: { day: ItineraryDayDto }) {
                     <p className="mt-1 text-sm text-muted-foreground">
                       {item.description}
                     </p>
+                    <Button
+                      className="mt-3 w-full"
+                      size="sm"
+                      variant="outline"
+                    >
+                      Agregar al itinerario
+                    </Button>
                   </div>
                 ) : (
                   <PlaceItem item={item} />
