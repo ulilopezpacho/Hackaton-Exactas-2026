@@ -90,7 +90,11 @@ Use this list as the source of truth when replacing mock pages with functional p
 - **`google.ts`**: Core wrapper for Google Places API (New).
   - `searchPlaces({ query, latBias, lngBias })`: Returns `PlaceCandidate[]`. Requires `GOOGLE_MAPS_API_KEY`; throws if it is missing.
   - `resolveDestination(query)`: Resolves destination name to coordinates and administrative metadata.
-- **`generatePlaces(input)`**: Higher-level AI orchestrator. Uses Claude to curate 15-25 places matching user preferences and destination context.
+- **`generatePlaces(input)`**: Higher-level AI orchestrator. Uses the configured AI provider to curate 15-25 places matching user preferences and destination context.
+- **`lib/ai/`**: Provider-neutral AI contract and provider factory.
+  - `AI_PROVIDER`: selects the registered provider adapter. Defaults to `gemini`.
+  - `AI_MODEL`: optional model override. The Gemini adapter defaults to the free-tier `gemma-4-31b-it` model.
+  - Provider-specific credentials remain isolated in each adapter (`GEMINI_API_KEY` or `ANTHROPIC_API_KEY`).
 
 ### Reusable API Endpoints
 
@@ -106,7 +110,7 @@ Use this list as the source of truth when replacing mock pages with functional p
 - **Styling**: Tailwind CSS 4, Vanilla CSS
 - **Components**: Shadcn UI, Base UI, Lucide Icons
 - **Backend**: Supabase (PostgreSQL, Auth, SSR)
-- **AI**: Anthropic SDK (Claude models)
+- **AI**: Provider-neutral adapter layer; Gemini is the default and Anthropic remains available.
 
 ## Agent Guidelines
 

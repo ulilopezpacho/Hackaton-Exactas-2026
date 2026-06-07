@@ -188,7 +188,7 @@ export async function generateItinerary(
 
   console.log(`[generateItinerary] Categorized: ${places.length} activities, ${mealPlaces.length} meal spots`);
 
-  // --- Score places with Claude ---
+  // --- Score places ---
   // Interests follow the route-over-global precedence resolved above; pace, budget
   // and travel style have no per-route equivalent, so they always come from the
   // global profile.
@@ -229,9 +229,9 @@ export async function generateItinerary(
   }
 
   if (orderedPlaces.length > 0) {
-    console.log(`[generateItinerary] Claude scored ${scored.length} places. Top scoring place: ${orderedPlaces[0].name} (Score: ${orderedPlaces[0].score})`);
+    console.log(`[generateItinerary] Scored ${scored.length} places. Top scoring place: ${orderedPlaces[0].name} (Score: ${orderedPlaces[0].score})`);
   } else {
-    console.warn(`[generateItinerary] Claude scored ${scored.length} places but none matched our activity list!`);
+    console.warn(`[generateItinerary] Scored ${scored.length} places but none matched our activity list!`);
   }
 
   console.log(`[generateItinerary] Sending ${orderedPlaces.length} ordered places to solver`);

@@ -1,20 +1,19 @@
-import { createAnthropicClient } from "../ai/anthropic";
+import {
+  getAiProvider,
+  type AiMessage,
+  type AiProvider,
+  type AiTool,
+  type AiToolResultBlock,
+  type AiToolUseBlock,
+} from "../ai";
 import { searchPlaces, type PlaceCandidate } from "./google";
 import {
   buildCuratedFromRefs,
   type CuratedPlace,
   type PlaceSelection,
 } from "./catalog";
-import type {
-  TextBlock,
-  ToolUseBlock,
-  MessageParam,
-  Tool,
-} from "@anthropic-ai/sdk/resources/messages.mjs";
-
 export type { CuratedPlace } from "./catalog";
 
-const MODEL = "claude-haiku-4-5";
 /**
  * Places per concurrent description request. Any batch that gets rejected (e.g.
  * an upstream 429) just falls back to Google summaries.
@@ -39,7 +38,7 @@ export interface GeneratePlacesInput {
 export async function generatePlaces(
   input: GeneratePlacesInput,
 ): Promise<CuratedPlace[]> {
-  const anthropic = createAnthropicClient();
+  const provider = getAiProvider();
 
   // The model curates by short `ref` tokens instead of re-typing opaque Google
   // place IDs. We assign one ref per unique candidate and can look the full
@@ -100,18 +99,18 @@ Instructions:
 8. Once your selection is complete, call "save_places" EXACTLY ONCE with your final list.
 9. Efficiency is key: try to complete the entire curation in as few turns as possible (ideally 2-3 rounds).`;
 
-  const messages: MessageParam[] = [
+  const messages: AiMessage[] = [
     {
       role: "user",
       content: `Find and curate 15-25 places for my trip to ${input.destination}.`,
     },
   ];
 
-  const tools: Tool[] = [
+  const tools: AiTool[] = [
     {
       name: "search_places",
       description: "Search for real places using the Google Places API.",
-      input_schema: {
+      inputSchema: {
         type: "object",
         properties: {
           query: {
@@ -127,7 +126,7 @@ Instructions:
       name: "save_places",
       description:
         "Terminal tool to save the final curated list of places. Call this exactly once when finished.",
-      input_schema: {
+      inputSchema: {
         type: "object",
         properties: {
           places: {
@@ -163,9 +162,8 @@ Instructions:
     
     let response;
     try {
-      response = await anthropic.messages.create({
-        model: MODEL,
-        max_tokens: 8192,
+      response = await provider.createMessage({
+        maxTokens: 8192,
         system: systemPrompt,
         tools,
         messages,
@@ -176,11 +174,18 @@ Instructions:
         console.warn(`[generatePlaces] Returning ${selections.length} curated places (Google summaries as descriptions) due to error.`);
         return buildCuratedFromRefs(selections, refToPlace).curated;
       }
+      if (refToPlace.size > 0) {
+        const fallbackSelections = buildFallbackSelections(refToPlace);
+        console.warn(
+          `[generatePlaces] AI provider failed after searching; returning ${fallbackSelections.length} top Google candidates.`,
+        );
+        return buildCuratedFromRefs(fallbackSelections, refToPlace).curated;
+      }
       throw error;
     }
 
     const llmDuration = Date.now() - llmStartTime;
-    stopReason = response.stop_reason ?? undefined;
+    stopReason = response.stopReason;
     console.log(`[generatePlaces] Round ${round}: LLM responded in ${llmDuration}ms. Stop reason: ${stopReason}`);
 
     if (stopReason === "max_tokens") {
@@ -191,16 +196,18 @@ Instructions:
 
     messages.push({
       role: "assistant",
-      content: response.content as Array<TextBlock | ToolUseBlock>,
+      content: response.content,
     });
 
-    const toolUseBlocks = response.content.filter(block => block.type === "tool_use") as ToolUseBlock[];
+    const toolUseBlocks = response.content.filter(
+      (block): block is AiToolUseBlock => block.type === "tool_use",
+    );
     
     if (toolUseBlocks.length > 0) {
       const toolStartTime = Date.now();
       console.log(`[generatePlaces] Round ${round}: Processing ${toolUseBlocks.length} tool calls...`);
 
-      const toolResults = await Promise.all(toolUseBlocks.map(async (block) => {
+      const toolResults: AiToolResultBlock[] = await Promise.all(toolUseBlocks.map(async (block) => {
         console.log(`[generatePlaces] Executing tool: ${block.name} (ID: ${block.id})`);
 
         if (block.name === "search_places") {
@@ -232,16 +239,18 @@ Instructions:
 
             return {
               type: "tool_result" as const,
-              tool_use_id: block.id,
+              toolUseId: block.id,
+              toolName: block.name,
               content,
             };
           } catch (error) {
             console.error(`[generatePlaces] Tool search_places failed:`, error);
             return {
               type: "tool_result" as const,
-              tool_use_id: block.id,
+              toolUseId: block.id,
+              toolName: block.name,
               content: `Error searching places: ${error instanceof Error ? error.message : String(error)}`,
-              is_error: true,
+              isError: true,
             };
           }
         } else if (block.name === "save_places") {
@@ -260,15 +269,17 @@ Instructions:
           saved = true;
           return {
             type: "tool_result" as const,
-            tool_use_id: block.id,
+            toolUseId: block.id,
+            toolName: block.name,
             content: "Places saved successfully.",
           };
         } else {
           return {
             type: "tool_result" as const,
-            tool_use_id: block.id,
+            toolUseId: block.id,
+            toolName: block.name,
             content: `Error: Unknown tool "${block.name}". Available tools: search_places, save_places.`,
-            is_error: true,
+            isError: true,
           };
         }
       }));
@@ -306,7 +317,7 @@ Instructions:
   // batch and fan them out concurrently instead of streaming one giant tool
   // call. Anything left without a description falls back to Google's editorial
   // summary in buildCuratedFromRefs.
-  await fillDescriptions(anthropic, input.destination, selections, refToPlace);
+  await fillDescriptions(provider, input.destination, selections, refToPlace);
 
   const { curated, dropped } = buildCuratedFromRefs(selections, refToPlace);
   if (dropped.length > 0) {
@@ -320,6 +331,23 @@ Instructions:
   return curated;
 }
 
+function buildFallbackSelections(
+  refToPlace: Map<string, PlaceCandidate>,
+): PlaceSelection[] {
+  return Array.from(refToPlace.entries())
+    .sort(([, left], [, right]) => {
+      const ratingDiff = (right.rating ?? 0) - (left.rating ?? 0);
+      if (ratingDiff !== 0) return ratingDiff;
+      return (right.userRatingsTotal ?? 0) - (left.userRatingsTotal ?? 0);
+    })
+    .slice(0, 20)
+    .map(([ref, place]) => ({
+      ref,
+      category: place.primaryType ?? "attraction",
+      defaultDurationMinutes: 90,
+    }));
+}
+
 /**
  * Generates a neutral, objective description for each selected place, mutating
  * `selections[].description` in place. Work is split into fixed-size batches run
@@ -327,7 +355,7 @@ Instructions:
  * unset (buildCuratedFromRefs then falls back to the Google summary).
  */
 async function fillDescriptions(
-  anthropic: ReturnType<typeof createAnthropicClient>,
+  provider: AiProvider,
   destination: string,
   selections: PlaceSelection[],
   refToPlace: Map<string, PlaceCandidate>,
@@ -340,10 +368,10 @@ async function fillDescriptions(
     batches.push(resolved.slice(i, i + DESCRIPTION_BATCH_SIZE));
   }
 
-  const tool: Tool = {
+  const tool: AiTool = {
     name: "save_descriptions",
     description: "Save a neutral, objective description for each place ref.",
-    input_schema: {
+    inputSchema: {
       type: "object",
       properties: {
         descriptions: {
@@ -381,12 +409,11 @@ async function fillDescriptions(
         .join("\n");
 
       try {
-        // const response = await anthropic.messages.create({
-        //   model: MODEL,
-        //   max_tokens: 4096,
+        // const response = await provider.createMessage({
+        //   maxTokens: 4096,
         //   system,
         //   tools: [tool],
-        //   tool_choice: { type: "tool", name: "save_descriptions" },
+        //   toolChoice: { type: "tool", name: "save_descriptions" },
         //   messages: [
         //     {
         //       role: "user",

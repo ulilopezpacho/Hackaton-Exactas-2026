@@ -9,7 +9,7 @@ export interface SolverPlace {
   name: string;
   durationMinutes: number;
   openingWindows: OpeningWindow[]; // empty = always open
-  score?: number; // 1-100 relevance score from Claude
+  score?: number; // 1-100 relevance score
 }
 
 export interface SolverDay {

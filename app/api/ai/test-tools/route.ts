@@ -1,12 +1,17 @@
-import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
-
-import { createAnthropicClient } from "@/lib/ai/anthropic";
+import {
+  getAiProvider,
+  type AiMessage,
+  type AiTool,
+  type AiToolResultBlock,
+  type AiToolUseBlock,
+} from "@/lib/ai";
 
 export const runtime = "nodejs";
 
-const getTripContext = betaTool({
+const getTripContextTool: AiTool = {
   name: "get_trip_context",
-  description: "Devuelve preferencias y lugares candidatos para armar un itinerario de viaje.",
+  description:
+    "Devuelve preferencias y lugares candidatos para armar un itinerario de viaje.",
   inputSchema: {
     type: "object",
     properties: {
@@ -18,38 +23,76 @@ const getTripContext = betaTool({
     required: ["destination"],
     additionalProperties: false,
   },
-  run: async ({ destination }) =>
-    JSON.stringify({
-      destination,
-      days: 3,
-      pace: "tranquilo",
-      interests: ["cafes", "museos", "barrios historicos"],
-      mustSeePlaces: ["Museo del Prado", "Parque del Retiro", "Plaza Mayor"],
-    }),
-});
+};
+
+function runGetTripContext(input: unknown): string {
+  const destination =
+    typeof input === "object" &&
+    input !== null &&
+    "destination" in input &&
+    typeof input.destination === "string"
+      ? input.destination
+      : "Madrid";
+
+  return JSON.stringify({
+    destination,
+    days: 3,
+    pace: "tranquilo",
+    interests: ["cafes", "museos", "barrios historicos"],
+    mustSeePlaces: ["Museo del Prado", "Parque del Retiro", "Plaza Mayor"],
+  });
+}
 
 export async function POST(request: Request) {
-  const { prompt = "Armá un resumen breve de un viaje de 3 días a Madrid usando la tool." } =
-    (await request.json().catch(() => ({}))) as { prompt?: string };
+  const {
+    prompt = "Arma un resumen breve de un viaje de 3 dias a Madrid usando la tool.",
+  } = (await request.json().catch(() => ({}))) as { prompt?: string };
 
   try {
-    const runner = createAnthropicClient().beta.messages.toolRunner({
-      model: "claude-haiku-4-5",
-      max_tokens: 700,
-      messages: [{ role: "user", content: prompt }],
-      tools: [getTripContext],
-    });
+    const provider = getAiProvider();
+    const messages: AiMessage[] = [{ role: "user", content: prompt }];
 
-    const message = await runner.runUntilDone();
+    let message;
+    for (let round = 0; round < 5; round++) {
+      message = await provider.createMessage({
+        maxTokens: 700,
+        messages,
+        tools: [getTripContextTool],
+      });
+
+      const toolCalls = message.content.filter(
+        (block): block is AiToolUseBlock => block.type === "tool_use",
+      );
+      if (toolCalls.length === 0) break;
+
+      const toolResults: AiToolResultBlock[] = toolCalls.map((block) => ({
+        type: "tool_result",
+        toolUseId: block.id,
+        toolName: block.name,
+        content:
+          block.name === getTripContextTool.name
+            ? runGetTripContext(block.input)
+            : `Unknown tool: ${block.name}`,
+        isError: block.name !== getTripContextTool.name,
+      }));
+
+      messages.push({ role: "assistant", content: message.content });
+      messages.push({ role: "user", content: toolResults });
+    }
+
+    if (!message) {
+      throw new Error("The AI provider did not return a message.");
+    }
 
     return Response.json({
       ok: true,
+      provider: provider.name,
       model: message.model,
-      stopReason: message.stop_reason,
+      stopReason: message.stopReason,
       content: message.content,
     });
   } catch (error) {
-    console.error("Anthropic test-tools route failed", error);
+    console.error("AI test-tools route failed", error);
     return Response.json(
       {
         ok: false,
