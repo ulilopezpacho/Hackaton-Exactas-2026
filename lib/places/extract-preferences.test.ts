@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  matchCatalogCategories,
   mergeSearchInterests,
   sanitizeExtractedInterests,
 } from "./preference-interests.ts";
+
+const MEAL_CATEGORIES = ["restaurante", "café", "cafetería", "bar", "gastro"];
 
 test("mergeSearchInterests preserves saved interests and appends extracted ones", () => {
   assert.deepEqual(
@@ -43,4 +46,33 @@ test("sanitizeExtractedInterests limits model output to twelve interests", () =>
   const interests = Array.from({ length: 15 }, (_, index) => `Interés ${index}`);
 
   assert.equal(sanitizeExtractedInterests(interests).length, 12);
+});
+
+test("matchCatalogCategories keeps matched activities and always keeps meal categories", () => {
+  assert.deepEqual(
+    matchCatalogCategories(
+      ["Arte", "Historia", "Gastro", "Fútbol"],
+      ["museos de arte", "historia"],
+      MEAL_CATEGORIES,
+    ),
+    { activity: ["Arte", "Historia"], meal: ["Gastro"] },
+  );
+});
+
+test("matchCatalogCategories matches accent- and case-insensitively", () => {
+  assert.deepEqual(
+    matchCatalogCategories(
+      ["Café", "Arte"],
+      ["ARTE moderno"],
+      MEAL_CATEGORIES,
+    ),
+    { activity: ["Arte"], meal: ["Café"] },
+  );
+});
+
+test("matchCatalogCategories returns no activities when interests are empty", () => {
+  assert.deepEqual(
+    matchCatalogCategories(["Arte", "Gastro"], [], MEAL_CATEGORIES),
+    { activity: [], meal: ["Gastro"] },
+  );
 });

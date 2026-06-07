@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { resolveDestination } from "@/lib/places/google";
 import { generatePlaces } from "@/lib/places/generate";
-import { extractSearchInterests } from "@/lib/places/extract-preferences";
+import { extractSearchInterestsCached } from "@/lib/places/extract-preferences";
 import { mergeSearchInterests } from "@/lib/places/preference-interests";
 
 export async function POST(
@@ -60,13 +60,15 @@ export async function POST(
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const extractedInterests = await extractSearchInterests(
+  // The route customization prompt takes precedence over the global profile:
+  // fall back to saved interests only when the prompt yields none.
+  const extractedInterests = await extractSearchInterestsCached(
     trip.route_customization_prompt,
   );
-  const searchInterests = mergeSearchInterests(
-    (prefs?.interests as string[]) || [],
-    extractedInterests,
-  );
+  const searchInterests =
+    extractedInterests.length > 0
+      ? extractedInterests
+      : mergeSearchInterests([], (prefs?.interests as string[]) || []);
 
   // 4. Resolve and Upsert Destination
   const destinationCandidate = await resolveDestination(destinationText);

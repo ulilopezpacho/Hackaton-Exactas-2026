@@ -3,6 +3,8 @@ import { solve } from "./solver";
 import { enrichRecommendations } from "./enrich-recommendations";
 import { scorePlaces } from "@/lib/places/score";
 import type { PlaceForScoring, UserPreferencesForScoring } from "@/lib/places/score";
+import { extractSearchInterestsCached } from "@/lib/places/extract-preferences";
+import { matchCatalogCategories } from "@/lib/places/preference-interests";
 import type {
   SolverInput,
   SolverPlace,
@@ -70,15 +72,55 @@ export async function generateItinerary(
   console.log(`[generateItinerary] Trip dates: ${tripData.starts_on} to ${tripData.ends_on}. Destination ID: ${tripData.destination_id}`);
   const days = buildDays(tripData.starts_on, tripData.ends_on);
 
-  // Fetch all active places for the destination if it exists, otherwise just the passed placeIds
+  // Resolve the user's preferences once, then derive the effective interests.
+  // The route customization prompt takes precedence: global preference interests
+  // are only used as a fallback when the prompt yields no specific interests.
+  const { data: userPrefs } = await supabase
+    .from("user_preferences")
+    .select("interests, pace, budget, travel_style_prompt")
+    .eq("user_id", tripData.owner_id)
+    .maybeSingle();
+
+  const savedInterests = (userPrefs?.interests as string[]) ?? [];
+  const extractedInterests = await extractSearchInterestsCached(
+    tripData.route_customization_prompt
+  );
+  const effectiveInterests =
+    extractedInterests.length > 0 ? extractedInterests : savedInterests;
+  console.log(
+    `[generateItinerary] Using ${effectiveInterests.length} interests from ${
+      extractedInterests.length > 0 ? "route customization prompt" : "global user preferences"
+    }`
+  );
+
+  // Narrow the destination catalog to categories relevant to the effective
+  // interests, instead of pulling every active place. User-prioritized places and
+  // meal places are always kept; if nothing matches we fall back to the full
+  // catalog so we never produce an empty itinerary.
   let placesQuery = supabase
     .from("places")
     .select("id, name, description, category, default_duration_minutes, rating, user_ratings_total, quality_score, popularity, location")
     .eq("status", "active");
 
   if (tripData.destination_id) {
-    console.log(`[generateItinerary] Querying priorities + destination ${tripData.destination_id} catalog`);
-    placesQuery = placesQuery.or(`id.in.(${placeIds.join(",")}),destination_id.eq.${tripData.destination_id}`);
+    const categoryFilter = await buildCategoryFilter(
+      supabase,
+      tripData.destination_id,
+      effectiveInterests
+    );
+
+    if (categoryFilter) {
+      console.log(
+        `[generateItinerary] Querying priorities + ${categoryFilter.categories.length} matched categories ` +
+          `(activities: [${categoryFilter.activity.join(", ")}], meals: [${categoryFilter.meal.join(", ")}])`
+      );
+      placesQuery = placesQuery.or(
+        `id.in.(${placeIds.join(",")}),and(destination_id.eq.${tripData.destination_id},category.in.(${toInList(categoryFilter.categories)}))`
+      );
+    } else {
+      console.log(`[generateItinerary] No category match; querying priorities + full destination ${tripData.destination_id} catalog`);
+      placesQuery = placesQuery.or(`id.in.(${placeIds.join(",")}),destination_id.eq.${tripData.destination_id}`);
+    }
   } else {
     console.log(`[generateItinerary] Querying only priorities (no destination ID found)`);
     placesQuery = placesQuery.in("id", placeIds);
@@ -86,7 +128,7 @@ export async function generateItinerary(
 
   const { data: placesRaw, error: placesError } = await placesQuery;
   if (placesError) throw new Error(`Failed to fetch places: ${placesError.message}`);
-  
+
   console.log(`[generateItinerary] Fetched ${placesRaw?.length ?? 0} total places from DB`);
 
   const placeRows = (placesRaw ?? []) as PlaceRow[];
@@ -139,14 +181,11 @@ export async function generateItinerary(
   console.log(`[generateItinerary] Categorized: ${places.length} activities, ${mealPlaces.length} meal spots`);
 
   // --- Score places with Claude ---
-  const { data: userPrefs } = await supabase
-    .from("user_preferences")
-    .select("interests, pace, budget, travel_style_prompt")
-    .eq("user_id", tripData.owner_id)
-    .maybeSingle();
-
+  // Interests follow the route-over-global precedence resolved above; pace, budget
+  // and travel style have no per-route equivalent, so they always come from the
+  // global profile.
   const prefsForScoring: UserPreferencesForScoring = {
-    interests: (userPrefs?.interests as string[]) ?? [],
+    interests: effectiveInterests,
     pace: (userPrefs?.pace as string) ?? null,
     budget: (userPrefs?.budget as string) ?? null,
     travelStylePrompt: (userPrefs?.travel_style_prompt as string) ?? null,
@@ -233,6 +272,62 @@ export async function generateItinerary(
 }
 
 // --- Helpers ---
+
+interface CategoryFilter {
+  activity: string[];
+  meal: string[];
+  categories: string[]; // activity + meal, the set passed to `category.in.(...)`
+}
+
+/**
+ * Resolves which catalog categories to keep for a destination, based on the
+ * already-resolved effective `interests` (route customization taking precedence
+ * over global preferences). Returns `null` when the caller should fall back to
+ * the full catalog (no interests or no activity category matched).
+ */
+async function buildCategoryFilter(
+  supabase: AnySupabase,
+  destinationId: string,
+  interests: string[]
+): Promise<CategoryFilter | null> {
+  if (interests.length === 0) return null;
+
+  const { data: categoryRows, error } = await supabase
+    .from("places")
+    .select("category")
+    .eq("status", "active")
+    .eq("destination_id", destinationId)
+    .not("category", "is", null);
+  if (error) throw new Error(`Failed to fetch categories: ${error.message}`);
+
+  const distinctCategories = Array.from(
+    new Set(
+      ((categoryRows ?? []) as { category: string | null }[])
+        .map((r) => r.category)
+        .filter((c): c is string => c != null)
+    )
+  );
+
+  const { activity, meal } = matchCatalogCategories(
+    distinctCategories,
+    interests,
+    MEAL_CATEGORIES
+  );
+
+  // Only filter when at least one activity category matched; otherwise keeping
+  // just meal categories would yield a meal-only itinerary.
+  if (activity.length === 0) return null;
+
+  return { activity, meal, categories: [...activity, ...meal] };
+}
+
+// Builds a PostgREST `in.(...)` value list, double-quoting each entry so values
+// containing spaces or punctuation (e.g. "Aire libre") parse correctly.
+function toInList(values: string[]): string {
+  return values
+    .map((v) => `"${v.replace(/"/g, '\\"')}"`)
+    .join(",");
+}
 
 export function buildDays(startsOn: string, endsOn: string): SolverDay[] {
   const days: SolverDay[] = [];
