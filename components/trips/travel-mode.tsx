@@ -38,7 +38,7 @@ type Strategy = "recalculate" | "recommended" | "trim";
 
 type RecommendedOperation = {
   durationMinutes?: number;
-  enabled: boolean;
+  enabled?: boolean;
   id: string;
   itemId: string;
   label: string;
@@ -47,6 +47,13 @@ type RecommendedOperation = {
 };
 
 type RecommendationPreview = {
+  constraints?: {
+    currentItemId: string;
+    durationMinutesByItemId: Record<string, number>;
+    effectiveStartAt: string;
+    excludedPlaceIds: string[];
+    sourceItineraryId: string;
+  };
   explanation: string;
   operations: RecommendedOperation[];
   scenario: Scenario;
@@ -338,30 +345,14 @@ function ReplanSheet({
     };
   }, [open, scenario, strategy, trip.id]);
 
-  function toggleOperation(id: string) {
-    setPreview((current) =>
-      current
-        ? {
-            ...current,
-            operations: current.operations.map((operation) =>
-              operation.id === id
-                ? { ...operation, enabled: !operation.enabled }
-                : operation,
-            ),
-          }
-        : current,
-    );
-  }
-
   async function applyChanges() {
     setPending(true);
     setError(null);
 
     try {
       const operations =
-        strategy === "recommended"
+        strategy === "trim"
           ? (preview?.operations ?? [])
-              .filter((operation) => operation.enabled)
               .map(({ durationMinutes, itemId, type }) => ({
                 durationMinutes,
                 itemId,
@@ -371,7 +362,11 @@ function ReplanSheet({
 
       await readJson(
         await fetch(`/api/trips/${trip.id}/travel/replan/apply`, {
-          body: JSON.stringify({ operations, strategy }),
+          body: JSON.stringify({
+            constraints: preview?.constraints,
+            operations,
+            strategy,
+          }),
           headers: { "Content-Type": "application/json" },
           method: "POST",
         }),
@@ -471,7 +466,7 @@ function ReplanSheet({
 
             <ReplanOption
               active={strategy === "recalculate"}
-              description="Quitá el último punto pendiente y recuperá margen."
+              description="Reordená el resto del día desde tu ubicación actual."
               icon={RefreshCwIcon}
               onClick={() => setStrategy("recalculate")}
               title="Recalcular itinerario"
@@ -479,11 +474,11 @@ function ReplanSheet({
             {strategy === "recalculate" ? (
               <div className="grid gap-2 rounded-xl border bg-card p-3">
                 <p className="text-sm text-muted-foreground">
-                  {preview?.strategy === "recalculate"
+                  {preview?.strategy === strategy
                     ? preview.explanation
                     : "Calculando alternativa…"}
                 </p>
-                {preview?.strategy === "recalculate"
+                {preview?.strategy === strategy
                   ? preview.operations.map((operation) => (
                       <span
                         className="rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs"
@@ -506,29 +501,20 @@ function ReplanSheet({
             {strategy === "recommended" ? (
               <div className="grid gap-2 rounded-xl border bg-card p-3">
                 <p className="text-sm text-muted-foreground">
-                  {preview?.explanation ?? "Preparando recomendación…"}
+                  {preview?.strategy === strategy
+                    ? preview.explanation
+                    : "Preparando recomendación…"}
                 </p>
-                {preview?.operations.map((operation) => (
-                  <label
-                    className="flex cursor-pointer items-center gap-3 rounded-lg bg-muted/60 p-2.5 text-sm"
-                    key={operation.id}
-                  >
-                    <input
-                      checked={operation.enabled}
-                      className="size-4 accent-primary"
-                      onChange={() => toggleOperation(operation.id)}
-                      type="checkbox"
-                    />
-                    <span>
-                      {operation.label}
-                      {operation.type === "trim" &&
-                      operation.previousDurationMinutes &&
-                      operation.durationMinutes
-                        ? ` · ${formatDuration(operation.previousDurationMinutes)} → ${formatDuration(operation.durationMinutes)}`
-                        : ""}
-                    </span>
-                  </label>
-                ))}
+                {preview?.strategy === strategy
+                  ? preview.operations.map((operation) => (
+                      <span
+                        className="rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs"
+                        key={operation.id}
+                      >
+                        {operation.label}
+                      </span>
+                    ))
+                  : null}
               </div>
             ) : null}
           </div>
@@ -543,8 +529,9 @@ function ReplanSheet({
             className="h-12 w-full"
             disabled={
               pending ||
-              (strategy === "recommended" &&
-                !(preview?.operations.some((operation) => operation.enabled)))
+              !preview ||
+              preview.strategy !== strategy ||
+              (strategy !== "trim" && !preview.constraints)
             }
             onClick={applyChanges}
             size="lg"

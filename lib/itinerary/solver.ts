@@ -11,7 +11,7 @@ import type {
 } from "./types";
 
 export function solve(input: SolverInput): SolverResult {
-  const { places, days, config } = input;
+  const { places, days, config, startPlaceId } = input;
   const numPlaces = places.length;
   const numDays = days.length;
 
@@ -48,7 +48,8 @@ export function solve(input: SolverInput): SolverResult {
         input.mealPlaces,
         input.travelMatrix,
         config,
-        globalUsedMealIds
+        globalUsedMealIds,
+        d === 0 ? startPlaceId : null,
       );
 
       dayPlaceLists[d].pop();
@@ -95,7 +96,8 @@ export function solve(input: SolverInput): SolverResult {
       input.mealPlaces,
       input.travelMatrix,
       config,
-      finalUsedMealIds
+      finalUsedMealIds,
+      d === 0 ? startPlaceId : null,
     );
 
     if (dayResult) {
@@ -124,20 +126,27 @@ function heldKarpOrder(
   places: SolverPlace[],
   day: SolverDay,
   travelMatrix: TravelMatrix,
-  config: SolverConfig
+  config: SolverConfig,
+  startPlaceId?: string | null,
 ): SolverPlace[] | null {
   const n = places.length;
   if (n <= 1) return places.length === 0 ? null : [...places];
-  if (n > 20) return nearestNeighborOrder(places, travelMatrix);
+  if (n > 20) return nearestNeighborOrder(places, travelMatrix, startPlaceId);
 
   const FULL = (1 << n) - 1;
   const dp: number[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(Infinity));
   const parent: (number[] | null)[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(null));
 
   for (let v = 0; v < n; v++) {
-    const w = findOpenWindow(places[v], day.dayOfWeek, config.dayStartTime);
+    const travel = getTravelTime(
+      travelMatrix,
+      startPlaceId ?? null,
+      places[v].id,
+    );
+    const arrival = config.dayStartTime + travel;
+    const w = findOpenWindow(places[v], day.dayOfWeek, arrival);
     if (!w) continue;
-    const start = Math.max(config.dayStartTime, w.opensAt);
+    const start = Math.max(arrival, w.opensAt);
     const end = start + places[v].durationMinutes;
     if (end > w.closesAt || end > config.dayEndTime) continue;
     dp[1 << v][v] = end;
@@ -176,7 +185,7 @@ function heldKarpOrder(
   }
 
   if (bestLast === -1) {
-    return nearestNeighborOrder(places, travelMatrix);
+    return nearestNeighborOrder(places, travelMatrix, startPlaceId);
   }
 
   const order: number[] = [];
@@ -198,13 +207,14 @@ function heldKarpOrder(
 
 function nearestNeighborOrder(
   places: SolverPlace[],
-  travelMatrix: TravelMatrix
+  travelMatrix: TravelMatrix,
+  startPlaceId?: string | null,
 ): SolverPlace[] {
   if (places.length <= 1) return [...places];
 
   const unvisited = [...places];
   const ordered: SolverPlace[] = [];
-  let currentId: string | null = null;
+  let currentId: string | null = startPlaceId ?? null;
 
   while (unvisited.length > 0) {
     let bestNextIndex = -1;
@@ -234,9 +244,21 @@ function canScheduleDay(
   day: SolverDay,
   mealPlaces: SolverPlace[],
   travelMatrix: TravelMatrix,
-  config: SolverConfig
+  config: SolverConfig,
+  startPlaceId?: string | null,
 ): boolean {
-  return findBestDaySchedule(places, dayIndex, day, mealPlaces, travelMatrix, config, []) !== null;
+  return (
+    findBestDaySchedule(
+      places,
+      dayIndex,
+      day,
+      mealPlaces,
+      travelMatrix,
+      config,
+      [],
+      startPlaceId,
+    ) !== null
+  );
 }
 
 function interDayLocalSearch(
@@ -244,10 +266,15 @@ function interDayLocalSearch(
   skipped: string[],
   input: SolverInput
 ): void {
-  const { places, mealPlaces, days, travelMatrix, config } = input;
+  const { places, mealPlaces, days, travelMatrix, config, startPlaceId } =
+    input;
   const numDays = days.length;
 
-  let currentScore = computeSolutionScore(dayPlaceLists, travelMatrix);
+  let currentScore = computeSolutionScore(
+    dayPlaceLists,
+    travelMatrix,
+    startPlaceId,
+  );
   let improved = true;
   let iteration = 0;
   const MAX_ITERATIONS = 50;
@@ -266,15 +293,42 @@ function interDayLocalSearch(
           if (!hasOpenWindow(place, days[d2].dayOfWeek)) continue;
 
           const candidateD2 = [...dayPlaceLists[d2], place];
-          if (!canScheduleDay(candidateD2, d2, days[d2], mealPlaces, travelMatrix, config)) continue;
+          if (
+            !canScheduleDay(
+              candidateD2,
+              d2,
+              days[d2],
+              mealPlaces,
+              travelMatrix,
+              config,
+              d2 === 0 ? startPlaceId : null,
+            )
+          )
+            continue;
 
           const candidateD1 = dayPlaceLists[d1].filter((_, i) => i !== pi);
+          if (
+            !canScheduleDay(
+              candidateD1,
+              d1,
+              days[d1],
+              mealPlaces,
+              travelMatrix,
+              config,
+              d1 === 0 ? startPlaceId : null,
+            )
+          )
+            continue;
 
           const saved = [dayPlaceLists[d1], dayPlaceLists[d2]];
           dayPlaceLists[d1] = candidateD1;
           dayPlaceLists[d2] = candidateD2;
 
-          const candidateScore = computeSolutionScore(dayPlaceLists, travelMatrix);
+          const candidateScore = computeSolutionScore(
+            dayPlaceLists,
+            travelMatrix,
+            startPlaceId,
+          );
 
           if (candidateScore > currentScore) {
             currentScore = candidateScore;
@@ -306,14 +360,40 @@ function interDayLocalSearch(
             candidateD1[pi] = placeB;
             candidateD2[pj] = placeA;
 
-            if (!canScheduleDay(candidateD1, d1, days[d1], mealPlaces, travelMatrix, config)) continue;
-            if (!canScheduleDay(candidateD2, d2, days[d2], mealPlaces, travelMatrix, config)) continue;
+            if (
+              !canScheduleDay(
+                candidateD1,
+                d1,
+                days[d1],
+                mealPlaces,
+                travelMatrix,
+                config,
+                d1 === 0 ? startPlaceId : null,
+              )
+            )
+              continue;
+            if (
+              !canScheduleDay(
+                candidateD2,
+                d2,
+                days[d2],
+                mealPlaces,
+                travelMatrix,
+                config,
+                d2 === 0 ? startPlaceId : null,
+              )
+            )
+              continue;
 
             const saved = [dayPlaceLists[d1], dayPlaceLists[d2]];
             dayPlaceLists[d1] = candidateD1;
             dayPlaceLists[d2] = candidateD2;
 
-            const candidateScore = computeSolutionScore(dayPlaceLists, travelMatrix);
+            const candidateScore = computeSolutionScore(
+              dayPlaceLists,
+              travelMatrix,
+              startPlaceId,
+            );
 
             if (candidateScore > currentScore) {
               currentScore = candidateScore;
@@ -341,11 +421,26 @@ function interDayLocalSearch(
       if (!hasOpenWindow(place, days[d].dayOfWeek)) continue;
 
       const candidate = [...dayPlaceLists[d], place];
-      if (!canScheduleDay(candidate, d, days[d], mealPlaces, travelMatrix, config)) continue;
+      if (
+        !canScheduleDay(
+          candidate,
+          d,
+          days[d],
+          mealPlaces,
+          travelMatrix,
+          config,
+          d === 0 ? startPlaceId : null,
+        )
+      )
+        continue;
 
       const saved = dayPlaceLists[d];
       dayPlaceLists[d] = candidate;
-      const candidateScore = computeSolutionScore(dayPlaceLists, travelMatrix);
+      const candidateScore = computeSolutionScore(
+        dayPlaceLists,
+        travelMatrix,
+        startPlaceId,
+      );
       dayPlaceLists[d] = saved;
 
       if (candidateScore > bestScore) {
@@ -394,7 +489,8 @@ function quickFeasibilityCheck(
 
 function computeSolutionScore(
   dayPlaceLists: SolverPlace[][],
-  travelMatrix: TravelMatrix
+  travelMatrix: TravelMatrix,
+  startPlaceId?: string | null,
 ): number {
   let score = 0;
   let placedCount = 0;
@@ -406,10 +502,16 @@ function computeSolutionScore(
     }
   }
 
-  for (const dayList of dayPlaceLists) {
+  for (let dayIndex = 0; dayIndex < dayPlaceLists.length; dayIndex++) {
+    const dayList = dayPlaceLists[dayIndex];
     if (dayList.length < 2) continue;
-    const ordered = nearestNeighborOrder(dayList, travelMatrix);
-    let lastId: string | null = null;
+    const dayStartPlaceId = dayIndex === 0 ? startPlaceId : null;
+    const ordered = nearestNeighborOrder(
+      dayList,
+      travelMatrix,
+      dayStartPlaceId,
+    );
+    let lastId: string | null = dayStartPlaceId ?? null;
     for (const p of ordered) {
       score -= getTravelTime(travelMatrix, lastId, p.id) * 5;
       lastId = p.id;
@@ -435,7 +537,8 @@ function findBestDaySchedule(
   mealPlaces: SolverPlace[],
   travelMatrix: TravelMatrix,
   config: SolverConfig,
-  usedMealPlaceIds: string[]
+  usedMealPlaceIds: string[],
+  startPlaceId?: string | null,
 ): {
   schedule: DaySchedule;
   totalTravel: number;
@@ -450,8 +553,9 @@ function findBestDaySchedule(
   }
 
   // Use Held-Karp DP for optimal ordering, fallback to nearest-neighbor
-  const ordered = heldKarpOrder(places, day, travelMatrix, config)
-    ?? nearestNeighborOrder(places, travelMatrix);
+  const ordered =
+    heldKarpOrder(places, day, travelMatrix, config, startPlaceId) ??
+    nearestNeighborOrder(places, travelMatrix, startPlaceId);
 
   const result = scheduleDayInOrder(
     ordered,
@@ -460,7 +564,8 @@ function findBestDaySchedule(
     mealPlaces,
     travelMatrix,
     config,
-    usedMealPlaceIds
+    usedMealPlaceIds,
+    startPlaceId,
   );
 
   if (!result) return null;
@@ -475,7 +580,8 @@ function scheduleDayInOrder(
   mealPlaces: SolverPlace[],
   travelMatrix: TravelMatrix,
   config: SolverConfig,
-  globalUsedMealIds: string[]
+  globalUsedMealIds: string[],
+  startPlaceId?: string | null,
 ): {
   schedule: DaySchedule;
   totalTravel: number;
@@ -484,7 +590,7 @@ function scheduleDayInOrder(
   const items: ScheduledItem[] = [];
   let currentTime = config.dayStartTime;
   let lastMealTime = config.dayStartTime;
-  let lastPlaceId: string | null = null;
+  let lastPlaceId: string | null = startPlaceId ?? null;
   let totalTravel = 0;
   const mealIdsUsed: string[] = [];
 
@@ -722,7 +828,7 @@ function getTravelTime(
   toId: string
 ): number {
   if (!fromId) return 0;
-  return matrix[fromId]?.[toId] ?? 0;
+  return matrix[fromId]?.[toId] ?? 15;
 }
 
 function hasOpenWindow(place: SolverPlace, dayOfWeek: number): boolean {

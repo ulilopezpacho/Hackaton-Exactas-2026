@@ -1,8 +1,16 @@
+import {
+  buildReplanConstraints,
+  type ReplanConstraints,
+  type ReplanPreview,
+  type ReplanScenario,
+  type ReplanStrategy,
+} from "@/lib/itinerary/replan-contract";
+import { replanWithSolver } from "@/lib/itinerary/replan-solver";
 import { getTrip } from "@/lib/trips/data";
 
 type PreviewRequest = {
-  scenario?: "closed" | "overstay";
-  strategy?: "trim" | "recalculate" | "recommended";
+  scenario?: ReplanScenario;
+  strategy?: ReplanStrategy;
 };
 
 export async function POST(
@@ -13,12 +21,15 @@ export async function POST(
   const body = (await request.json()) as PreviewRequest;
   const scenario = body.scenario ?? "overstay";
   const strategy = body.strategy ?? "recommended";
-  const trip = await getTrip(tripId);
 
   if (!["trim", "recalculate", "recommended"].includes(strategy)) {
     return Response.json({ error: "Unsupported strategy" }, { status: 400 });
   }
+  if (!["closed", "overstay"].includes(scenario)) {
+    return Response.json({ error: "Unsupported scenario" }, { status: 400 });
+  }
 
+  const trip = await getTrip(tripId);
   if (!trip || !trip.isOwner) {
     return Response.json({ error: "Trip not found" }, { status: 404 });
   }
@@ -34,11 +45,19 @@ export async function POST(
   const currentIndex = navigableItems.findIndex(
     (item) => item.id === trip.currentItineraryItemId,
   );
-  const upcoming = navigableItems.slice(Math.max(0, currentIndex + 1));
+
+  if (!day || currentIndex < 0) {
+    return Response.json(
+      { error: "Current itinerary changed; reload travel mode" },
+      { status: 409 },
+    );
+  }
+
+  const currentItem = navigableItems[currentIndex];
+  const upcoming = navigableItems.slice(currentIndex + 1);
 
   if (strategy === "trim") {
     const operations = upcoming.map((item) => trimOperation(item));
-
     return Response.json({
       explanation: operations.length
         ? "Mantenés todos los puntos pendientes y recortás sus tiempos para recuperar margen."
@@ -49,54 +68,76 @@ export async function POST(
     });
   }
 
-  if (strategy === "recalculate") {
-    const dropItem = upcoming.at(-1);
-    const operations = dropItem
-      ? [
-          {
-            enabled: true,
-            id: `remove-${dropItem.id}`,
-            itemId: dropItem.id,
-            label: `Quitar ${dropItem.place?.name ?? dropItem.title}`,
-            type: "remove" as const,
-          },
-        ]
-      : [];
+  const closedItem =
+    scenario === "closed"
+      ? upcoming.find((item) => item.itemType === "place" && item.place)
+      : null;
+  const constraints: ReplanConstraints = buildReplanConstraints({
+    currentItem: {
+      durationMinutes: currentItem.durationMinutes,
+      endsAt: currentItem.endsAt,
+      id: currentItem.id,
+      itemType: currentItem.itemType,
+      placeId: currentItem.place?.id ?? null,
+    },
+    scenario,
+    sourceItineraryId: day.id,
+    upcomingItems: upcoming.map((item) => ({
+      durationMinutes: item.durationMinutes,
+      endsAt: item.endsAt,
+      id: item.id,
+      itemType: item.itemType,
+      placeId: item.place?.id ?? null,
+    })),
+  });
 
-    return Response.json({
-      explanation: operations.length
-        ? "Quitás el último punto pendiente para liberar tiempo sin tocar el punto actual."
-        : "No quedan puntos pendientes para recalcular.",
-      operations,
+  try {
+    const result = await replanWithSolver(tripId, constraints);
+    const droppedItems = upcoming.filter(
+      (item) =>
+        item.place &&
+        (constraints.excludedPlaceIds.includes(item.place.id) ||
+          result.droppedPlaceIds.includes(item.place.id)),
+    );
+    const preview: ReplanPreview = {
+      constraints,
+      explanation: buildExplanation({
+        closedItemName: closedItem
+          ? closedItem.place?.name ?? closedItem.title
+          : null,
+        droppedCount: droppedItems.length,
+        scenario,
+      }),
+      operations: droppedItems.map((item) => ({
+        id: `remove-${item.id}`,
+        itemId: item.id,
+        label: `Quitar ${item.place?.name ?? item.title}`,
+        type: "remove",
+      })),
       scenario,
       strategy,
-    });
+    };
+    return Response.json(preview);
+  } catch (error) {
+    console.error("[replan-preview]", error);
+    return Response.json(
+      { error: error instanceof Error ? error.message : "Replan failed" },
+      { status: 500 },
+    );
   }
+}
 
-  const operations =
-    scenario === "closed"
-      ? upcoming.slice(0, 1).map((item) => ({
-          enabled: true,
-          id: `remove-${item.id}`,
-          itemId: item.id,
-          label: `Quitar ${item.place?.name ?? item.title}`,
-          type: "remove" as const,
-        }))
-      : upcoming.slice(0, 2).map(trimOperation);
-
-  return Response.json({
-    explanation:
-      scenario === "closed"
-        ? operations.length
-          ? "Conviene quitar el próximo punto cerrado y conservar el resto del día."
-          : "No quedan puntos pendientes para reemplazar."
-        : operations.length
-          ? "Conviene recortar los próximos puntos para recuperar el atraso sin perder el recorrido."
-          : "No quedan puntos pendientes que necesiten ajustes.",
-    operations,
-    scenario,
-    strategy,
-  });
+function buildExplanation(input: {
+  closedItemName: string | null;
+  droppedCount: number;
+  scenario: ReplanScenario;
+}) {
+  const prefix = input.closedItemName
+    ? `Como ${input.closedItemName} cerró, `
+    : "Tomando 30 minutos adicionales, ";
+  return input.droppedCount
+    ? `${prefix}reordenamos el resto del día y quitamos ${input.droppedCount} punto(s) que ya no entran.`
+    : `${prefix}reordenamos el resto del día conservando todos los lugares.`;
 }
 
 function trimOperation(item: {
