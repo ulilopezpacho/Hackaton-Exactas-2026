@@ -85,3 +85,29 @@ Rules:
     return [];
   }
 }
+
+// In-process memoization so the same customization prompt is not extracted twice
+// (e.g. once in the place-catalog route and again when generating the itinerary).
+// Cached per server process; not shared across instances.
+const interestsCache = new Map<string, Promise<string[]>>();
+
+export function extractSearchInterestsCached(
+  customizationPrompt: string | null | undefined,
+): Promise<string[]> {
+  const key = customizationPrompt?.trim();
+  if (!key) return Promise.resolve([]);
+
+  const cached = interestsCache.get(key);
+  if (cached) return cached;
+
+  // extractSearchInterests swallows errors into [], so a failed/empty extraction
+  // would otherwise be cached for the process lifetime. Drop empty results so a
+  // later call can retry.
+  const pending = extractSearchInterests(customizationPrompt).then((result) => {
+    if (result.length === 0) interestsCache.delete(key);
+    return result;
+  });
+
+  interestsCache.set(key, pending);
+  return pending;
+}
