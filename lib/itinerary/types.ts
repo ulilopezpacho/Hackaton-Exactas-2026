@@ -31,6 +31,7 @@ export interface SolverInput {
   days: SolverDay[];
   travelMatrix: TravelMatrix; // placeId -> placeId -> minutes (includes both places and mealPlaces)
   config: SolverConfig;
+  startPlaceId?: string | null;
 }
 
 export interface ScheduledItem {

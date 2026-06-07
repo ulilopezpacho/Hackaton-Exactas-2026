@@ -101,6 +101,34 @@ describe("Solver integration (small inputs)", () => {
     }
   });
 
+  test("includes travel from the starting place before the first visit", () => {
+    const place = alwaysOpen("destination", "Destination", 60);
+    const result = solve({
+      places: [place],
+      mealPlaces: [],
+      days: oneDay,
+      travelMatrix: {
+        origin: { destination: 35 },
+        destination: { origin: 35, destination: 0 },
+      },
+      config: {
+        ...baseConfig,
+        dayEndTime: 12 * 60,
+      },
+      startPlaceId: "origin",
+    });
+
+    expect(result.days[0].items[0]).toMatchObject({
+      type: "transfer",
+      startMinute: baseConfig.dayStartTime,
+      endMinute: baseConfig.dayStartTime + 35,
+    });
+    expect(result.days[0].items[1]).toMatchObject({
+      placeId: "destination",
+      startMinute: baseConfig.dayStartTime + 35,
+    });
+  });
+
   test("respects opening windows (Tuesday-only place)", () => {
     const tuesdayOnly: SolverPlace = {
       id: "tue-only", name: "Tuesday Only", durationMinutes: 60,
