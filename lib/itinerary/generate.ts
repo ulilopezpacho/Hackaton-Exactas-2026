@@ -383,17 +383,60 @@ function extractCoords(
   location: unknown
 ): { lat: number; lng: number } | null {
   if (!location) return null;
-  if (
-    typeof location === "object" &&
-    location !== null &&
-    "coordinates" in location
-  ) {
+
+  // GeoJSON object: { type: "Point", coordinates: [lng, lat] }
+  if (typeof location === "object" && location !== null && "coordinates" in location) {
     const coords = (location as { coordinates: number[] }).coordinates;
     if (Array.isArray(coords) && coords.length >= 2) {
       return { lng: coords[0], lat: coords[1] };
     }
   }
+
+  // EWKB hex string — what Supabase/PostgREST actually returns for geography columns
+  if (typeof location === "string") {
+    return parseEwkbPoint(location);
+  }
+
   return null;
+}
+
+function parseEwkbPoint(hex: string): { lat: number; lng: number } | null {
+  try {
+    // Minimum: 1B order + 4B type + 4B SRID + 8B x + 8B y = 25 bytes = 50 hex chars
+    if (hex.length < 50) return null;
+
+    const isLE = hex.slice(0, 2).toLowerCase() === "01";
+
+    const readUint32 = (offset: number): number => {
+      const s = hex.slice(offset, offset + 8);
+      const ordered = isLE ? (s.match(/../g) ?? []).reverse().join("") : s;
+      return parseInt(ordered, 16);
+    };
+
+    const readDouble = (offset: number): number => {
+      const s = hex.slice(offset, offset + 16);
+      const bytes = (isLE ? (s.match(/../g) ?? []).reverse() : (s.match(/../g) ?? [])).map(
+        (b) => parseInt(b, 16),
+      );
+      const buf = new ArrayBuffer(8);
+      const view = new DataView(buf);
+      bytes.forEach((b, i) => view.setUint8(i, b));
+      return view.getFloat64(0); // big-endian after byte reversal
+    };
+
+    const geomType = readUint32(2);
+    const hasSrid = (geomType & 0x20000000) !== 0;
+    if ((geomType & 0xffff) !== 1) return null; // Not a Point
+
+    const coordOffset = 2 + 8 + (hasSrid ? 8 : 0); // hex char offset
+    const lng = readDouble(coordOffset);
+    const lat = readDouble(coordOffset + 16);
+
+    if (!isFinite(lng) || !isFinite(lat)) return null;
+    return { lng, lat };
+  } catch {
+    return null;
+  }
 }
 
 function buildTravelMatrix(places: PlaceRow[]): TravelMatrix {
