@@ -28,9 +28,6 @@ import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   Tabs,
@@ -118,7 +115,8 @@ function Timeline({ day }: { day: ItineraryDayDto }) {
       <div className="mb-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h2 className="text-2xl font-semibold">{day.title}</h2>
         <span className="text-sm capitalize text-muted-foreground">
-          {day.dateLabel}
+          {day.dateLabel} · {visibleItems.length}{" "}
+          {visibleItems.length === 1 ? "momento" : "momentos"}
         </span>
       </div>
 
@@ -335,6 +333,8 @@ function MapPanel({ day }: { day: ItineraryDayDto }) {
   );
 }
 
+type ItineraryView = "list" | "map";
+
 export function ItineraryExplorer({
   immersive = false,
   selectedDay,
@@ -345,9 +345,26 @@ export function ItineraryExplorer({
   trip: TripDto;
 }) {
   const router = useRouter();
+  const [activeView, setActiveView] = useState<ItineraryView>(() => {
+    if (typeof window === "undefined") {
+      return "list";
+    }
+
+    return new URLSearchParams(window.location.search).get("view") === "map"
+      ? "map"
+      : "list";
+  });
 
   function goBack() {
     router.replace("/app/trips");
+  }
+
+  function changeView(value: string) {
+    const nextView: ItineraryView = value === "map" ? "map" : "list";
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", nextView);
+    window.history.replaceState(null, "", url);
+    setActiveView(nextView);
   }
 
   return (
@@ -402,7 +419,7 @@ export function ItineraryExplorer({
         ) : null}
       </div>
 
-      <Tabs defaultValue="list">
+      <Tabs onValueChange={changeView} value={activeView}>
         <TabsList className="w-full sm:w-72">
           <TabsTrigger
             className="data-active:bg-card"
@@ -431,7 +448,7 @@ export function ItineraryExplorer({
               nativeButton={false}
               render={
                 <Link
-                  href={`/app/trips/${trip.id}/itinerary/${day.dayNumber}`}
+                  href={`/app/trips/${trip.id}/itinerary/${day.dayNumber}?view=${activeView}`}
                 />
               }
               variant={
@@ -448,12 +465,6 @@ export function ItineraryExplorer({
 
         <TabsContent value="list">
           <Card className="mt-2">
-            <CardHeader>
-              <CardTitle>Día {selectedDay.dayNumber}</CardTitle>
-              <CardDescription className="capitalize">
-                {selectedDay.dateLabel} · {selectedDay.items.length} momentos
-              </CardDescription>
-            </CardHeader>
             <CardContent>
               <Timeline day={selectedDay} />
             </CardContent>

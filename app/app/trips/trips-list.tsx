@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CalendarDaysIcon,
+  CheckIcon,
+  ChevronDownIcon,
   ClockIcon,
   MapIcon,
 } from "lucide-react";
@@ -74,26 +76,84 @@ function formatCount(count: number, filter: TripFilter) {
 
 export function TripsList({ trips }: { trips: TripOverview[] }) {
   const [activeFilter, setActiveFilter] = useState<TripFilter>("all");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
   const visibleTrips = activeFilter === "all"
     ? trips
     : trips.filter((trip) => trip.status === activeFilter);
+  const activeFilterLabel =
+    filters.find((filter) => filter.value === activeFilter)?.label ?? "Todos";
+
+  useEffect(() => {
+    if (!filterOpen) {
+      return;
+    }
+
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (
+        event.target instanceof Node &&
+        !filterRef.current?.contains(event.target)
+      ) {
+        setFilterOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, [filterOpen]);
 
   return (
     <>
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {filters.map((filter) => (
-          <Button
-            aria-pressed={activeFilter === filter.value}
-            className="shrink-0 rounded-full"
-            key={filter.value}
-            onClick={() => setActiveFilter(filter.value)}
-            size="sm"
-            type="button"
-            variant={activeFilter === filter.value ? "default" : "outline"}
+      <div className="relative w-full sm:w-56" ref={filterRef}>
+        <button
+          aria-expanded={filterOpen}
+          aria-haspopup="listbox"
+          className="flex h-11 w-full items-center justify-between rounded-xl border border-input bg-card px-4 text-sm font-semibold text-foreground shadow-sm transition hover:border-primary/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+          onClick={() => setFilterOpen((open) => !open)}
+          type="button"
+        >
+          {activeFilterLabel}
+          <ChevronDownIcon
+            aria-hidden="true"
+            className={cn(
+              "size-4 text-muted-foreground transition-transform",
+              filterOpen && "rotate-180",
+            )}
+          />
+        </button>
+
+        {filterOpen ? (
+          <div
+            aria-label="Filtrar viajes por estado"
+            className="absolute inset-x-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-xl border border-border bg-card p-1.5 shadow-xl shadow-foreground/10"
+            role="listbox"
           >
-            {filter.label}
-          </Button>
-        ))}
+            {filters.map((filter) => {
+              const selected = filter.value === activeFilter;
+
+              return (
+                <button
+                  aria-selected={selected}
+                  className={cn(
+                    "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-secondary focus-visible:bg-secondary focus-visible:outline-none",
+                    selected && "bg-primary/10 text-primary",
+                  )}
+                  key={filter.value}
+                  onClick={() => {
+                    setActiveFilter(filter.value);
+                    setFilterOpen(false);
+                  }}
+                  role="option"
+                  type="button"
+                >
+                  {filter.label}
+                  {selected ? <CheckIcon className="size-4" /> : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       <div className="grid gap-5">
