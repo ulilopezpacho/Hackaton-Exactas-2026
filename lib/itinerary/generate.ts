@@ -48,12 +48,13 @@ export async function generateItinerary(
   placeIds: string[],
   configOverrides?: Partial<SolverConfig>
 ): Promise<SolverResult> {
+  console.log(`[generateItinerary] Starting for trip ${tripId}. Priorities:`, placeIds);
   const supabase: AnySupabase = await createClient();
   const config = { ...DEFAULT_CONFIG, ...configOverrides };
 
   const { data: trip, error: tripError } = await supabase
     .from("trips")
-    .select("starts_on, ends_on, owner_id, route_customization_prompt")
+    .select("starts_on, ends_on, owner_id, route_customization_prompt, destination_id")
     .eq("id", tripId)
     .single();
   if (tripError || !trip) throw new Error(`Trip not found: ${tripId}`);
@@ -63,15 +64,29 @@ export async function generateItinerary(
     ends_on: string;
     owner_id: string;
     route_customization_prompt: string | null;
+    destination_id: string | null;
   };
+  console.log(`[generateItinerary] Trip dates: ${tripData.starts_on} to ${tripData.ends_on}. Destination ID: ${tripData.destination_id}`);
   const days = buildDays(tripData.starts_on, tripData.ends_on);
 
-  const { data: placesRaw, error: placesError } = await supabase
+  // Fetch all active places for the destination if it exists, otherwise just the passed placeIds
+  let placesQuery = supabase
     .from("places")
     .select("id, name, description, category, default_duration_minutes, rating, user_ratings_total, quality_score, popularity, location")
-    .in("id", placeIds)
     .eq("status", "active");
+
+  if (tripData.destination_id) {
+    console.log(`[generateItinerary] Querying priorities + destination ${tripData.destination_id} catalog`);
+    placesQuery = placesQuery.or(`id.in.(${placeIds.join(",")}),destination_id.eq.${tripData.destination_id}`);
+  } else {
+    console.log(`[generateItinerary] Querying only priorities (no destination ID found)`);
+    placesQuery = placesQuery.in("id", placeIds);
+  }
+
+  const { data: placesRaw, error: placesError } = await placesQuery;
   if (placesError) throw new Error(`Failed to fetch places: ${placesError.message}`);
+  
+  console.log(`[generateItinerary] Fetched ${placesRaw?.length ?? 0} total places from DB`);
 
   const placeRows = (placesRaw ?? []) as PlaceRow[];
   const allPlaceIds = placeRows.map((p) => p.id);
@@ -84,6 +99,7 @@ export async function generateItinerary(
     throw new Error(`Failed to fetch opening windows: ${windowsError.message}`);
 
   const windowRows = (windowsRaw ?? []) as WindowRow[];
+  console.log(`[generateItinerary] Fetched ${windowRows.length} opening windows`);
   const windowsByPlace = new Map<string, WindowRow[]>();
   for (const w of windowRows) {
     const list = windowsByPlace.get(w.place_id) ?? [];
@@ -119,6 +135,8 @@ export async function generateItinerary(
     }
   }
 
+  console.log(`[generateItinerary] Categorized: ${places.length} activities, ${mealPlaces.length} meal spots`);
+
   // --- Score places with Claude ---
   const { data: userPrefs } = await supabase
     .from("user_preferences")
@@ -144,20 +162,31 @@ export async function generateItinerary(
     popularity: p.popularity,
   }));
 
+  console.log(`[generateItinerary] Scoring ${placesForScoring.length} places...`);
   const scored = await scorePlaces({
     places: placesForScoring,
     userPreferences: prefsForScoring,
     tripCustomizationPrompt: tripData.route_customization_prompt ?? undefined,
   });
 
-  const top15 = scored.slice(0, 15);
+  const top30 = scored.slice(0, 30);
   const scoresByPlaceId = new Map(scored.map((s) => [s.id, s.score]));
 
   const orderedPlaces: SolverPlace[] = [];
-  for (const s of top15) {
+  for (const s of top30) {
     const p = places.find((pl) => pl.id === s.id);
-    if (p) orderedPlaces.push({ ...p, score: s.score });
+    if (p) {
+      orderedPlaces.push({ ...p, score: s.score });
+    }
   }
+
+  if (orderedPlaces.length > 0) {
+    console.log(`[generateItinerary] Claude scored ${scored.length} places. Top scoring place: ${orderedPlaces[0].name} (Score: ${orderedPlaces[0].score})`);
+  } else {
+    console.warn(`[generateItinerary] Claude scored ${scored.length} places but none matched our activity list!`);
+  }
+
+  console.log(`[generateItinerary] Sending ${orderedPlaces.length} ordered places to solver`);
 
   const travelMatrix = buildTravelMatrix(placeRows);
 
@@ -170,6 +199,7 @@ export async function generateItinerary(
   };
 
   const result = solve(input);
+  console.log(`[generateItinerary] Solver finished. Days scheduled: ${result.days.filter(d => d.items.length > 0).length}. Score: ${result.score}`);
 
   await writeToSupabase(supabase, tripId, result, days, scoresByPlaceId);
 
@@ -275,13 +305,21 @@ async function writeToSupabase(
   days: SolverDay[],
   scoresByPlaceId: Map<string, number>
 ) {
+  // Clean up existing itineraries for this trip before writing new ones
+  await supabase
+    .from("itineraries")
+    .delete()
+    .eq("trip_id", tripId);
+
   for (const daySchedule of result.days) {
     const { data: itinerary, error: itinError } = await supabase
       .from("itineraries")
       .insert({
         trip_id: tripId,
         day_number: daySchedule.dayIndex + 1,
-        status: "draft",
+        status: "active",
+        itinerary_type: "smart_generated",
+        title: `Día ${daySchedule.dayIndex + 1}`,
       })
       .select("id")
       .single();

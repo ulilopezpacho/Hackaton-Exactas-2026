@@ -10,12 +10,12 @@ import type {
   OpeningWindow,
 } from "./types";
 
-const TIMEOUT_MS = 30_000;
-
 export function solve(input: SolverInput): SolverResult {
   const { places, days, config } = input;
   const numPlaces = places.length;
   const numDays = days.length;
+
+  console.log(`[solve] Starting Greedy Constructive. Places: ${numPlaces}, Days: ${numDays}`);
 
   if (numPlaces === 0) {
     return {
@@ -25,122 +25,95 @@ export function solve(input: SolverInput): SolverResult {
     };
   }
 
-  let bestResult: SolverResult | null = null;
-  const startTime = Date.now();
-  const dayAssignments = new Array<number>(numPlaces).fill(-1);
-  const dayDurationSums = new Array<number>(numDays).fill(0);
-
-  function backtrack(placeIndex: number) {
-    if (Date.now() - startTime > TIMEOUT_MS) return;
-
-    if (placeIndex === numPlaces) {
-      const result = buildFullSchedule(dayAssignments, input);
-      if (result && (!bestResult || result.score > bestResult.score)) {
-        bestResult = result;
-      }
-      return;
-    }
-
-    const place = places[placeIndex];
-    const availableMinutes = config.dayEndTime - config.dayStartTime;
-
-    for (let d = 0; d < numDays; d++) {
-      if (dayDurationSums[d] + place.durationMinutes > availableMinutes) continue;
-
-      if (!hasOpenWindow(place, days[d].dayOfWeek)) continue;
-
-      dayAssignments[placeIndex] = d;
-      dayDurationSums[d] += place.durationMinutes;
-      backtrack(placeIndex + 1);
-      dayDurationSums[d] -= place.durationMinutes;
-    }
-
-    dayAssignments[placeIndex] = -1;
-    backtrack(placeIndex + 1);
-  }
-
-  backtrack(0);
-
-  return (
-    bestResult ?? {
-      days: days.map((_, i) => ({ dayIndex: i, items: [] })),
-      score: 0,
-      unplacedPlaces: places.map((p) => p.id),
-    }
-  );
-}
-
-// --- Schedule builder ---
-
-function buildFullSchedule(
-  dayAssignments: number[],
-  input: SolverInput
-): SolverResult | null {
-  const { places, mealPlaces, days, travelMatrix, config } = input;
-
   const dayPlaceLists: SolverPlace[][] = days.map(() => []);
   const skipped: string[] = [];
+  const globalUsedMealIds: string[] = [];
 
-  for (let i = 0; i < places.length; i++) {
-    if (dayAssignments[i] === -1) {
-      skipped.push(places[i].id);
+  // Sort places by score descending (they usually are, but let's be safe)
+  const sortedPlaces = [...places].sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  for (const place of sortedPlaces) {
+    let bestDay = -1;
+    let bestDayScore = -Infinity;
+    let bestDayResult: { totalTravel: number; mealPlaceIdsUsed: string[] } | null = null;
+
+    for (let d = 0; d < numDays; d++) {
+      // 1. Basic opening window prune
+      if (!hasOpenWindow(place, days[d].dayOfWeek)) continue;
+
+      // 2. Try adding to this day
+      dayPlaceLists[d].push(place);
+      
+      // We simulate the day's schedule
+      const dayResult = findBestDaySchedule(
+        dayPlaceLists[d],
+        d,
+        days[d],
+        input.mealPlaces,
+        input.travelMatrix,
+        config,
+        globalUsedMealIds
+      );
+      
+      dayPlaceLists[d].pop(); // Backtrack
+
+      if (dayResult) {
+        // Heuristic: favor higher place scores, lower travel time, and balanced distribution
+        const travelIncrease = dayResult.totalTravel;
+        const balancePenalty = dayPlaceLists[d].length * 15; // Penalize crowded days
+        
+        const score = (place.score || 50) - (travelIncrease / 10) - balancePenalty;
+
+        if (score > bestDayScore) {
+          bestDayScore = score;
+          bestDay = d;
+          bestDayResult = dayResult;
+        }
+      }
+    }
+
+    if (bestDay !== -1 && bestDayResult) {
+      dayPlaceLists[bestDay].push(place);
     } else {
-      dayPlaceLists[dayAssignments[i]].push(places[i]);
+      skipped.push(place.id);
     }
   }
 
+  // Final assembly
   const resultDays: DaySchedule[] = [];
   let totalTravel = 0;
-  const usedMealPlaceIds: string[] = [];
+  const finalUsedMealIds: string[] = [];
 
-  for (let d = 0; d < days.length; d++) {
+  for (let d = 0; d < numDays; d++) {
     const dayResult = findBestDaySchedule(
       dayPlaceLists[d],
       d,
       days[d],
-      mealPlaces,
-      travelMatrix,
+      input.mealPlaces,
+      input.travelMatrix,
       config,
-      usedMealPlaceIds
+      finalUsedMealIds
     );
-    if (!dayResult) return null;
-
-    resultDays.push(dayResult.schedule);
-    totalTravel += dayResult.totalTravel;
-    usedMealPlaceIds.push(...dayResult.mealPlaceIdsUsed);
-  }
-
-  let score = 0;
-  const placesAssigned = places.length - skipped.length;
-  score += placesAssigned * 1000;
-
-  for (let i = 0; i < places.length; i++) {
-    if (dayAssignments[i] !== -1) {
-      score += places[i].score ?? (places.length - i) * 10;
+    
+    if (dayResult) {
+      resultDays.push(dayResult.schedule);
+      totalTravel += dayResult.totalTravel;
+      finalUsedMealIds.push(...dayResult.mealPlaceIdsUsed);
+    } else {
+      resultDays.push({ dayIndex: d, items: [] });
     }
   }
 
-  score -= totalTravel;
-
-  const mealCounts: Record<string, number> = {};
-  for (const id of usedMealPlaceIds) {
-    mealCounts[id] = (mealCounts[id] || 0) + 1;
+  // Calculate final score
+  let finalScore = (numPlaces - skipped.length) * 1000;
+  for (const dayList of dayPlaceLists) {
+    for (const p of dayList) finalScore += p.score || 50;
   }
-  for (const id of Object.keys(mealCounts)) {
-    if (mealCounts[id] > 1) score -= (mealCounts[id] - 1) * 50;
-  }
+  finalScore -= totalTravel;
 
-  // Penalize unbalanced day distribution (squared deviation from mean)
-  if (days.length > 1 && placesAssigned > 0) {
-    const avg = placesAssigned / days.length;
-    let balancePenalty = 0;
-    for (const dayPlaces of dayPlaceLists) {
-      balancePenalty += (dayPlaces.length - avg) ** 2;
-    }
-    score -= Math.round(balancePenalty * 150);
-  }
+  console.log(`[solve] Finished. Assigned: ${numPlaces - skipped.length}/${numPlaces}. Score: ${finalScore}`);
 
-  return { days: resultDays, score, unplacedPlaces: skipped };
+  return { days: resultDays, score: finalScore, unplacedPlaces: skipped };
 }
 
 // --- Per-day scheduling ---
@@ -166,28 +139,41 @@ function findBestDaySchedule(
     };
   }
 
-  let best: {
-    schedule: DaySchedule;
-    totalTravel: number;
-    mealPlaceIdsUsed: string[];
-  } | null = null;
+  // Use a greedy nearest-neighbor approach instead of exhaustive permutations
+  const unvisited = [...places];
+  const ordered: SolverPlace[] = [];
+  let currentId: string | null = null;
 
-  for (const perm of permutations(places)) {
-    const result = scheduleDayInOrder(
-      perm,
-      dayIndex,
-      day,
-      mealPlaces,
-      travelMatrix,
-      config,
-      usedMealPlaceIds
-    );
-    if (result && (!best || result.totalTravel < best.totalTravel)) {
-      best = result;
+  while (unvisited.length > 0) {
+    let bestNextIndex = -1;
+    let minTravel = Infinity;
+
+    for (let i = 0; i < unvisited.length; i++) {
+      const travel = getTravelTime(travelMatrix, currentId, unvisited[i].id);
+      if (travel < minTravel) {
+        minTravel = travel;
+        bestNextIndex = i;
+      }
     }
+
+    const nextPlace = unvisited.splice(bestNextIndex, 1)[0];
+    ordered.push(nextPlace);
+    currentId = nextPlace.id;
   }
 
-  return best;
+  const result = scheduleDayInOrder(
+    ordered,
+    dayIndex,
+    day,
+    mealPlaces,
+    travelMatrix,
+    config,
+    usedMealPlaceIds
+  );
+
+  if (!result) return null;
+
+  return result;
 }
 
 function scheduleDayInOrder(
@@ -275,7 +261,7 @@ function scheduleDayInOrder(
     lastPlaceId = place.id;
   }
 
-  // Fill remaining day with meals at regular intervals
+  // Fill remaining day with meals
   while (config.dayEndTime - currentTime >= 30) {
     const nextMealDue = lastMealTime + config.mealIntervalMinutes;
     if (nextMealDue >= config.dayEndTime) break;
@@ -474,16 +460,4 @@ function findOpenWindow(
   }
 
   return null;
-}
-
-function permutations<T>(arr: T[]): T[][] {
-  if (arr.length <= 1) return [[...arr]];
-  const result: T[][] = [];
-  for (let i = 0; i < arr.length; i++) {
-    const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
-    for (const perm of permutations(rest)) {
-      result.push([arr[i], ...perm]);
-    }
-  }
-  return result;
 }

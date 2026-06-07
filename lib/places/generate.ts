@@ -360,32 +360,33 @@ async function fillDescriptions(
         .join("\n");
 
       try {
-        const response = await anthropic.messages.create({
-          model: MODEL,
-          max_tokens: 4096,
-          system,
-          tools: [tool],
-          tool_choice: { type: "tool", name: "save_descriptions" },
-          messages: [
-            {
-              role: "user",
-              content: `Write a neutral description for each place below. Return every ref.\n\n${list}`,
-            },
-          ],
-        });
+        // const response = await anthropic.messages.create({
+        //   model: MODEL,
+        //   max_tokens: 4096,
+        //   system,
+        //   tools: [tool],
+        //   tool_choice: { type: "tool", name: "save_descriptions" },
+        //   messages: [
+        //     {
+        //       role: "user",
+        //       content: `Write a neutral description for each place below. Return every ref.\n\n${list}`,
+        //     },
+        //   ],
+        // });
 
-        const out = new Map<string, string>();
-        for (const block of response.content) {
-          if (block.type === "tool_use" && block.name === "save_descriptions") {
-            const items = (
-              block.input as {
-                descriptions: Array<{ ref: string; description: string }>;
-              }
-            ).descriptions;
-            for (const d of items) out.set(d.ref?.trim(), d.description);
-          }
-        }
-        return out;
+        // const out = new Map<string, string>();
+        // for (const block of response.content) {
+        //   if (block.type === "tool_use" && block.name === "save_descriptions") {
+        //     const items = (
+        //       block.input as {
+        //         descriptions: Array<{ ref: string; description: string }>;
+        //       }
+        //     ).descriptions;
+        //     for (const d of items) out.set(d.ref?.trim(), d.description);
+        //   }
+        // }
+        // return out;
+        throw Error;
       } catch (error) {
         // Descriptions are best-effort: any failure (commonly a 429 from the
         // upstream rate limit) just leaves these refs without a model-written

@@ -1,12 +1,8 @@
-import Link from "next/link";
-import { CheckIcon, DatabaseIcon, RefreshCwIcon, SparklesIcon } from "lucide-react";
 import { redirect } from "next/navigation";
+import { differenceInDays, parseISO } from "date-fns";
 
-import { PageShell } from "@/components/app/page-shell";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { createClient } from "@/utils/supabase/server";
+import { ItineraryWizard } from "@/components/app/itinerary-wizard";
 
 type GeneratingPageProps = {
   searchParams: Promise<{ tripId?: string }>;
@@ -20,9 +16,10 @@ export default async function GeneratingPage({ searchParams }: GeneratingPagePro
   }
 
   const supabase = await createClient();
+  
   const { data: trip } = await supabase
     .from("trips")
-    .select("id, title, starts_on, ends_on, route_customization_prompt")
+    .select("id, title, starts_on, ends_on")
     .eq("id", tripId)
     .single();
 
@@ -30,59 +27,34 @@ export default async function GeneratingPage({ searchParams }: GeneratingPagePro
     redirect("/app/trips/new/destination?error=missing-trip");
   }
 
-  const steps = [
-    "Guardamos destino, fechas y wishlist",
-    "Unimos tus notas con el orden de prioridades",
-    "Dejamos el contexto en el viaje para el LLM",
-    "El agente va a generar el plan final",
-  ];
+  // Fetch the place IDs from the tentative itinerary items
+  const { data: itineraries } = await supabase
+    .from("itineraries")
+    .select("id")
+    .eq("trip_id", tripId)
+    .eq("itinerary_type", "wizard_tentative");
+
+  const itineraryIds = itineraries?.map((i) => i.id) ?? [];
+  
+  const { data: items } = await supabase
+    .from("itinerary_items")
+    .select("place_id")
+    .in("itinerary_id", itineraryIds)
+    .not("place_id", "is", null);
+
+  const placeIds = Array.from(new Set((items ?? []).map((i) => i.place_id as string)));
+  const dayCount = differenceInDays(parseISO(trip.ends_on), parseISO(trip.starts_on)) + 1;
 
   return (
-    <PageShell
-      eyebrow="Armando tu viaje"
-      title={`Preparando ${trip.title} para el generador`}
-    >
-      <Card>
-        <CardContent className="flex flex-col items-center gap-6 py-10 text-center">
-          <div className="flex size-20 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl shadow-primary/20">
-            <SparklesIcon className="size-9" />
-          </div>
-          <div>
-            <Badge variant="secondary">
-              <DatabaseIcon data-icon="inline-start" />
-              Contexto de generación guardado
-            </Badge>
-            <p className="mt-3 max-w-md text-sm text-muted-foreground">
-              La base contiene el viaje y el prompt de personalización. El
-              itinerario todavía no existe: lo va a crear el flujo LLM.
-            </p>
-          </div>
-          {trip.route_customization_prompt ? (
-            <div className="max-h-44 w-full max-w-md overflow-y-auto rounded-xl border bg-muted/40 p-4 text-left text-xs leading-relaxed text-muted-foreground">
-              {trip.route_customization_prompt}
-            </div>
-          ) : null}
-          <div className="grid w-full max-w-md gap-3 text-left">
-            {steps.map((step, index) => (
-              <div className="flex items-center gap-3 text-sm" key={step}>
-                <span className="flex size-7 items-center justify-center rounded-full border border-primary bg-primary text-primary-foreground">
-                  {index === steps.length - 1 ? (
-                    <RefreshCwIcon className="size-3 animate-spin" />
-                  ) : (
-                    <CheckIcon className="size-3" />
-                  )}
-                </span>
-                {step}
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap justify-center gap-3">
-            <Button nativeButton={false} render={<Link href="/app/trips" />}>
-              Volver a viajes
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </PageShell>
+    <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="w-full max-w-md">
+        <ItineraryWizard
+          tripId={trip.id}
+          placeIds={placeIds}
+          tripTitle={trip.title}
+          dayCount={dayCount}
+        />
+      </div>
+    </div>
   );
 }
