@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { resolveDestination } from "@/lib/places/google";
 import { generatePlaces } from "@/lib/places/generate";
+import { extractSearchInterests } from "@/lib/places/extract-preferences";
+import { mergeSearchInterests } from "@/lib/places/preference-interests";
 
 export async function POST(
   request: NextRequest,
@@ -21,7 +23,7 @@ export async function POST(
   // 1. Fetch trip data
   const { data: trip, error: tripError } = await supabase
     .from("trips")
-    .select("title, starts_on, ends_on")
+    .select("title, starts_on, ends_on, route_customization_prompt")
     .eq("id", tripId)
     .single();
 
@@ -57,6 +59,14 @@ export async function POST(
     .select("interests, pace, budget, travel_style_prompt")
     .eq("user_id", user.id)
     .maybeSingle();
+
+  const extractedInterests = await extractSearchInterests(
+    trip.route_customization_prompt,
+  );
+  const searchInterests = mergeSearchInterests(
+    (prefs?.interests as string[]) || [],
+    extractedInterests,
+  );
 
   // 4. Resolve and Upsert Destination
   const destinationCandidate = await resolveDestination(destinationText);
@@ -104,7 +114,7 @@ export async function POST(
     title: trip.title,
     startsOn: trip.starts_on,
     endsOn: trip.ends_on,
-    interests: (prefs?.interests as string[]) || [],
+    interests: searchInterests,
     pace: (prefs?.pace as string) || undefined,
     budget: (prefs?.budget as string) || undefined,
     travelStylePrompt: (prefs?.travel_style_prompt as string) || undefined,
