@@ -37,6 +37,7 @@ export interface ScheduledItem {
   placeId: string | null;
   type: "place" | "transfer" | "recommendation";
   title: string;
+  description?: string | null;
   startMinute: number; // minutes from midnight
   endMinute: number; // minutes from midnight
 }

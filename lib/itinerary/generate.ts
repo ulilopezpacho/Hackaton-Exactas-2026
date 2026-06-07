@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { solve } from "./solver";
+import { enrichRecommendations } from "./enrich-recommendations";
 import { scorePlaces } from "@/lib/places/score";
 import type { PlaceForScoring, UserPreferencesForScoring } from "@/lib/places/score";
 import type {
@@ -201,9 +202,34 @@ export async function generateItinerary(
   const result = solve(input);
   console.log(`[generateItinerary] Solver finished. Days scheduled: ${result.days.filter(d => d.items.length > 0).length}. Score: ${result.score}`);
 
-  await writeToSupabase(supabase, tripId, result, days, scoresByPlaceId);
+  const coordinatesByPlaceId = new Map(
+    placeRows.flatMap((place) => {
+      const coordinates = extractCoords(place.location);
+      return coordinates ? [[place.id, coordinates] as const] : [];
+    }),
+  );
+  const enrichedResult = await enrichRecommendations({
+    supabase,
+    result,
+    destinationId: tripData.destination_id,
+    budget: prefsForScoring.budget as
+      | "under_50"
+      | "50_100"
+      | "100_200"
+      | "over_200"
+      | null,
+    coordinatesByPlaceId,
+  });
 
-  return result;
+  await writeToSupabase(
+    supabase,
+    tripId,
+    enrichedResult,
+    days,
+    scoresByPlaceId,
+  );
+
+  return enrichedResult;
 }
 
 // --- Helpers ---
@@ -337,6 +363,7 @@ async function writeToSupabase(
       place_id: item.placeId,
       item_type: item.type,
       title: item.title,
+      description: item.description ?? null,
       starts_at: `${dayDate}T${minutesToTime(item.startMinute)}:00`,
       ends_at: `${dayDate}T${minutesToTime(item.endMinute)}:00`,
       position,

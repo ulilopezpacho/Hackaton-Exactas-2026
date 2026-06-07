@@ -9,6 +9,26 @@ export interface PlaceCandidate {
   summary?: string;
   rating?: number;
   userRatingsTotal?: number;
+  priceLevel?: GooglePriceLevel;
+}
+
+export type GooglePriceLevel =
+  | "PRICE_LEVEL_INEXPENSIVE"
+  | "PRICE_LEVEL_MODERATE"
+  | "PRICE_LEVEL_EXPENSIVE"
+  | "PRICE_LEVEL_VERY_EXPENSIVE";
+
+export interface SearchPlacesOptions {
+  query: string;
+  latBias?: number;
+  lngBias?: number;
+  radiusMeters?: number;
+  includedType?: string;
+  strictTypeFiltering?: boolean;
+  minRating?: number;
+  priceLevels?: GooglePriceLevel[];
+  rankPreference?: "DISTANCE" | "RELEVANCE";
+  pageSize?: number;
 }
 
 export interface DestinationCandidate {
@@ -101,11 +121,14 @@ export async function searchPlaces({
   query,
   latBias,
   lngBias,
-}: {
-  query: string;
-  latBias?: number;
-  lngBias?: number;
-}): Promise<PlaceCandidate[]> {
+  radiusMeters = 10000,
+  includedType,
+  strictTypeFiltering,
+  minRating,
+  priceLevels,
+  rankPreference,
+  pageSize,
+}: SearchPlacesOptions): Promise<PlaceCandidate[]> {
   const apiKey = getApiKey();
 
   const body: Record<string, unknown> = {
@@ -119,10 +142,19 @@ export async function searchPlaces({
           latitude: latBias,
           longitude: lngBias,
         },
-        radius: 10000.0, // 10km bias for better coverage in cities
+        radius: radiusMeters,
       },
     };
   }
+
+  if (includedType) body.includedType = includedType;
+  if (strictTypeFiltering !== undefined) {
+    body.strictTypeFiltering = strictTypeFiltering;
+  }
+  if (minRating !== undefined) body.minRating = minRating;
+  if (priceLevels?.length) body.priceLevels = priceLevels;
+  if (rankPreference) body.rankPreference = rankPreference;
+  if (pageSize !== undefined) body.pageSize = pageSize;
 
   const response = await fetch(
     "https://places.googleapis.com/v1/places:searchText",
@@ -132,7 +164,7 @@ export async function searchPlaces({
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
         "X-Goog-FieldMask":
-          "places.id,places.displayName,places.formattedAddress,places.location,places.primaryType,places.types,places.editorialSummary,places.rating,places.userRatingCount",
+          "places.id,places.displayName,places.formattedAddress,places.location,places.primaryType,places.types,places.editorialSummary,places.rating,places.userRatingCount,places.priceLevel",
       },
       body: JSON.stringify(body),
     },
@@ -154,6 +186,7 @@ export async function searchPlaces({
     editorialSummary?: { text: string };
     rating?: number;
     userRatingCount?: number;
+    priceLevel?: GooglePriceLevel;
   }>;
 
   return places.map((p) => ({
@@ -167,6 +200,7 @@ export async function searchPlaces({
     summary: p.editorialSummary?.text,
     rating: p.rating,
     userRatingsTotal: p.userRatingCount,
+    priceLevel: p.priceLevel,
   }));
 }
 
