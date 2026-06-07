@@ -56,7 +56,7 @@ export function solve(input: SolverInput): SolverResult {
       if (dayResult) {
         const travelIncrease = dayResult.totalTravel;
         const balancePenalty = dayPlaceLists[d].length * 15;
-        const score = (place.score || 50) - (travelIncrease / 10) - balancePenalty;
+        const score = (place.score || 50) - travelIncrease * 2 - balancePenalty;
 
         if (score > bestDayScore) {
           bestDayScore = score;
@@ -111,7 +111,7 @@ export function solve(input: SolverInput): SolverResult {
   for (const dayList of dayPlaceLists) {
     for (const p of dayList) finalScore += p.score || 50;
   }
-  finalScore -= totalTravel;
+  finalScore -= totalTravel * 5;
 
   console.log(`[solve] Finished. Assigned: ${numPlaces - skipped.length}/${numPlaces}. Score: ${finalScore}`);
 
@@ -411,7 +411,7 @@ function computeSolutionScore(
     const ordered = nearestNeighborOrder(dayList, travelMatrix);
     let lastId: string | null = null;
     for (const p of ordered) {
-      score -= getTravelTime(travelMatrix, lastId, p.id);
+      score -= getTravelTime(travelMatrix, lastId, p.id) * 5;
       lastId = p.id;
     }
   }
@@ -642,11 +642,10 @@ function insertMealPlace(
     if (start + mp.durationMinutes > w.closesAt) continue;
     if (start + mp.durationMinutes > config.dayEndTime) continue;
 
-    const usageCount = usedMealIds.filter((id) => id === mp.id).length;
-    const cost = travel + usageCount * 30;
+    if (usedMealIds.includes(mp.id)) continue;
 
-    if (cost < bestCost) {
-      bestCost = cost;
+    if (travel < bestCost) {
+      bestCost = travel;
       bestPlace = mp;
     }
   }
