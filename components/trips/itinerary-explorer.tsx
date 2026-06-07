@@ -347,12 +347,7 @@ export function ItineraryExplorer({
   const router = useRouter();
 
   function goBack() {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-      return;
-    }
-
-    router.push(`/app/trips/${trip.id}`);
+    router.replace(`/app/trips/${trip.id}`);
   }
 
   return (

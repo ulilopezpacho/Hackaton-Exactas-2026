@@ -630,7 +630,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
           </h1>
           <Button
             className="mt-4"
-            onClick={() => router.push(`/app/trips/${trip.id}/itinerary`)}
+            onClick={() => router.replace(`/app/trips/${trip.id}/itinerary`)}
           >
             Volver al itinerario
           </Button>
@@ -676,7 +676,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
             aria-label="Volver al itinerario"
             className="size-10 rounded-full bg-white/90 shadow-md backdrop-blur"
             onClick={() =>
-              router.push(
+              router.replace(
                 `/app/trips/${trip.id}/itinerary/${currentPoint.dayNumber}`,
               )
             }

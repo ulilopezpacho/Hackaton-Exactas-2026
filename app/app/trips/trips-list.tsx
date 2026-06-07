@@ -129,66 +129,60 @@ export function TripsList({ trips }: { trips: TripOverview[] }) {
             const isDraft = trip.status === "draft";
 
             return (
-              <Card
-                className={cn(
-                  "transition-colors [--card-spacing:0px] hover:border-primary/35",
-                  isDraft && "bg-secondary/35 hover:border-border-strong",
-                )}
+              <Link
+                className="block rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                href={trip.href}
                 key={trip.id}
               >
-                <CardContent className="grid p-0 sm:grid-cols-[7rem_1fr]">
-                  <div
-                    className={cn(
-                      "relative min-h-24 overflow-hidden bg-linear-to-br sm:min-h-full",
-                      trip.stripeClass,
-                    )}
-                  >
-                    <div className="absolute inset-0 bg-primary/35 mix-blend-multiply" />
-                    <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(115deg,transparent_0_30%,rgba(255,255,255,.5)_30%_31%,transparent_31%_58%,rgba(255,255,255,.3)_58%_59%,transparent_59%)]" />
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-3 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <CardTitle className="text-2xl">{trip.city}</CardTitle>
-                          <Badge className={status.tone} variant="outline">
-                            {status.label}
-                          </Badge>
+                <Card
+                  className={cn(
+                    "h-full cursor-pointer transition-colors [--card-spacing:0px] hover:border-primary/35",
+                    isDraft && "bg-secondary/35 hover:border-border-strong",
+                  )}
+                >
+                  <CardContent className="grid p-0 sm:grid-cols-[7rem_1fr]">
+                    <div
+                      className={cn(
+                        "relative min-h-24 overflow-hidden bg-linear-to-br sm:min-h-full",
+                        trip.stripeClass,
+                      )}
+                    >
+                      <div className="absolute inset-0 bg-primary/35 mix-blend-multiply" />
+                      <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(115deg,transparent_0_30%,rgba(255,255,255,.5)_30%_31%,transparent_31%_58%,rgba(255,255,255,.3)_58%_59%,transparent_59%)]" />
+                    </div>
+                    <div className="flex min-w-0 flex-col gap-3 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <CardTitle className="text-2xl">{trip.city}</CardTitle>
+                            <Badge className={status.tone} variant="outline">
+                              {status.label}
+                            </Badge>
+                          </div>
+                          <CardDescription>
+                            {trip.country} · {trip.tone}
+                          </CardDescription>
                         </div>
-                        <CardDescription>
-                          {trip.country} · {trip.tone}
-                        </CardDescription>
+                      </div>
+
+                      <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
+                        <span className="inline-flex items-center gap-2">
+                          <CalendarDaysIcon className="size-4" />
+                          {trip.dates}
+                        </span>
+                        <span className="inline-flex items-center gap-2">
+                          <ClockIcon className="size-4" />
+                          {trip.days}
+                        </span>
+                        <span className="inline-flex items-center gap-2">
+                          <MapIcon className="size-4" />
+                          {trip.places}
+                        </span>
                       </div>
                     </div>
-
-                    <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
-                      <span className="inline-flex items-center gap-2">
-                        <CalendarDaysIcon className="size-4" />
-                        {trip.dates}
-                      </span>
-                      <span className="inline-flex items-center gap-2">
-                        <ClockIcon className="size-4" />
-                        {trip.days}
-                      </span>
-                      <span className="inline-flex items-center gap-2">
-                        <MapIcon className="size-4" />
-                        {trip.places}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        nativeButton={false}
-                        render={<Link href={trip.href} />}
-                        size="sm"
-                        variant={isDraft ? "ghost" : "outline"}
-                      >
-                        Abrir
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
             );
           })}
         </div>

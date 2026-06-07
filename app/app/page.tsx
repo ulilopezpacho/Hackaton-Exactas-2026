@@ -3,11 +3,9 @@ import {
   ArrowRightIcon,
   CalendarDaysIcon,
   ClockIcon,
-  CompassIcon,
   MapPinnedIcon,
   PlaneTakeoffIcon,
   PlusIcon,
-  RouteIcon,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -20,27 +18,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { getTripsOverview } from "@/lib/trips/overview";
-
-const shortcuts = [
-  {
-    icon: PlusIcon,
-    title: "Crear viaje",
-    description: "Elegí destino, fechas y preferencias para armar una ruta nueva.",
-    href: "/app/trips/new/destination",
-  },
-  {
-    icon: RouteIcon,
-    title: "Ver mis trips",
-    description: "Revisá borradores, viajes próximos e itinerarios terminados.",
-    href: "/app/trips",
-  },
-  {
-    icon: CompassIcon,
-    title: "Preferencias",
-    description: "Ajustá ritmo, intereses y estilo de viaje para futuras propuestas.",
-    href: "/app/profile/preferences",
-  },
-];
 
 function formatUpdatedAt(value: string) {
   return new Intl.DateTimeFormat("es-AR", {
@@ -66,8 +43,7 @@ export default async function HomePage() {
             <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(118deg,transparent_0_25%,rgba(255,255,255,.2)_25%_25.5%,transparent_25.5%_52%,rgba(255,255,255,.15)_52%_52.5%,transparent_52.5%),linear-gradient(28deg,transparent_0_42%,rgba(255,255,255,.15)_42%_42.5%,transparent_42.5%)]" />
             <div className="absolute -right-20 -top-24 size-72 rounded-full border border-white/20" />
             <div className="absolute -bottom-40 right-20 size-80 rounded-full border border-white/15" />
-            <div className="relative flex min-h-64 flex-col justify-between gap-16">
-              <p className="text-sm font-medium text-primary-foreground/70">Nuevo</p>
+            <div className="relative flex min-h-64 flex-col justify-end">
               <div>
                 <h1 className="max-w-2xl font-heading text-5xl leading-[0.98] font-medium text-balance md:text-7xl">
                   Decinos qué querés ver. Armamos el viaje.
@@ -95,14 +71,18 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
-          <div className="grid p-4 sm:grid-cols-3">
+          <div className="grid grid-cols-3 p-4">
             {statCards.map((stat) => (
               <div
-                className="border-l border-border px-4 py-2 first:border-l-0"
+                className="border-l border-primary-foreground/25 px-4 py-2 first:border-l-0"
                 key={stat.label}
               >
-                <p className="text-2xl font-semibold" data-numeric>{stat.value}</p>
-                <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
+                <p className="text-2xl font-semibold text-primary-foreground" data-numeric>
+                  {stat.value}
+                </p>
+                <p className="text-xs font-medium text-primary-foreground/70">
+                  {stat.label}
+                </p>
               </div>
             ))}
           </div>
@@ -169,57 +149,29 @@ export default async function HomePage() {
         </Card>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div>
-          <div>
-            <p className="text-sm font-medium text-primary">Atajos</p>
-            <h2 className="mt-1 text-2xl font-semibold">Organizá el próximo paso</h2>
-          </div>
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-          {shortcuts.map((shortcut) => {
-            const Icon = shortcut.icon;
-
-            return (
-              <Link className="block" href={shortcut.href} key={shortcut.title}>
-                <Card className="h-full transition-colors hover:border-primary/40 hover:bg-card/70">
-                  <CardHeader>
-                    <div className="flex size-10 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
-                      <Icon className="size-5" />
-                    </div>
-                    <CardTitle>{shortcut.title}</CardTitle>
-                    <CardDescription>{shortcut.description}</CardDescription>
-                  </CardHeader>
-                </Card>
-              </Link>
-            );
-          })}
-          </div>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="inline-flex items-center gap-2">
-              <PlaneTakeoffIcon className="size-4" />
-              Actividad reciente
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4">
-            {recentTrips.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Todavía no hay viajes para mostrar.
-              </p>
-            ) : recentTrips.map((trip) => (
-              <div className="grid gap-1 border-b border-border pb-4 last:border-b-0 last:pb-0" key={trip.id}>
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold">{trip.city}</p>
-                  <time className="text-xs text-muted-foreground">{formatUpdatedAt(trip.updatedAt)}</time>
-                </div>
-                <p className="text-sm text-muted-foreground">{trip.tone}</p>
+      <Card>
+        <CardHeader>
+          <CardTitle className="inline-flex items-center gap-2">
+            <PlaneTakeoffIcon className="size-4" />
+            Actividad reciente
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4">
+          {recentTrips.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Todavía no hay viajes para mostrar.
+            </p>
+          ) : recentTrips.map((trip) => (
+            <div className="grid gap-1 border-b border-border pb-4 last:border-b-0 last:pb-0" key={trip.id}>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold">{trip.city}</p>
+                <time className="text-xs text-muted-foreground">{formatUpdatedAt(trip.updatedAt)}</time>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+              <p className="text-sm text-muted-foreground">{trip.tone}</p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </section>
   );
 }

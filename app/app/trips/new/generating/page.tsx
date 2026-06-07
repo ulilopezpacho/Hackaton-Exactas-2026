@@ -27,6 +27,18 @@ export default async function GeneratingPage({ searchParams }: GeneratingPagePro
     redirect("/app/trips/new/destination?error=missing-trip");
   }
 
+  const { data: generatedItinerary } = await supabase
+    .from("itineraries")
+    .select("id")
+    .eq("trip_id", trip.id)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle();
+
+  if (generatedItinerary) {
+    redirect(`/app/trips/${trip.id}/itinerary`);
+  }
+
   const placeIds = Array.from(
     new Set(typeof placeId === "string" ? [placeId] : placeId ?? []),
   );

@@ -528,4 +528,15 @@ async function writeToSupabase(
       }
     }
   }
+
+  const { error: tripStatusError } = await supabase
+    .from("trips")
+    .update({ status: "planned" })
+    .eq("id", tripId);
+
+  if (tripStatusError) {
+    throw new Error(
+      `Failed to finish trip generation: ${tripStatusError.message}`
+    );
+  }
 }

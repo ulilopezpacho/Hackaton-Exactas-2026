@@ -94,7 +94,7 @@ export function ItineraryWizard({
 
         // Small delay to show completion before redirect
         setTimeout(() => {
-          router.push(`/app/trips/${tripId}/itinerary`);
+          router.replace(`/app/trips/${tripId}/itinerary`);
         }, 1000);
       } catch (err) {
         console.error(err);

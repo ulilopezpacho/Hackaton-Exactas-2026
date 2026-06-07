@@ -3,6 +3,7 @@ import "server-only";
 import { cache } from "react";
 
 import { selectCurrentItineraryLeaves } from "@/lib/trips/itinerary-versions";
+import { resolvedTripStatus } from "@/lib/trips/status";
 import { createClient } from "@/utils/supabase/server";
 
 export type TripPlaceDto = {
@@ -276,6 +277,9 @@ export const getTrip = cache(async (tripId: string): Promise<TripDto | null> => 
     title: trip.title,
     travelCompletedAt: trip.travel_completed_at,
     travelStartedAt: trip.travel_started_at,
-    travelStatus: trip.status as TripDto["travelStatus"],
+    travelStatus: resolvedTripStatus(
+      trip.status as TripDto["travelStatus"],
+      days.length > 0,
+    ),
   };
 });

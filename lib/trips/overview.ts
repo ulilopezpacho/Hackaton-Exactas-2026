@@ -3,6 +3,7 @@ import "server-only";
 import { createClient } from "@/utils/supabase/server";
 import { selectCurrentItineraryLeaves } from "@/lib/trips/itinerary-versions";
 import type { TripOverview, TripsOverview, TripStatus } from "@/lib/trips/overview-types";
+import { resolvedTripStatus } from "@/lib/trips/status";
 
 type ItineraryOverview = {
   created_at: string;
@@ -70,7 +71,12 @@ function tripStatus(
   endsOn: string,
   storedStatus: string,
 ): TripStatus {
-  if (storedStatus === "generating") {
+  const resolvedStatus = resolvedTripStatus(
+    storedStatus as "planned" | "generating" | "ongoing" | "completed",
+    activeItineraries.length > 0,
+  );
+
+  if (resolvedStatus === "generating") {
     return "generating";
   }
 
@@ -78,11 +84,11 @@ function tripStatus(
     return "draft";
   }
 
-  if (storedStatus === "ongoing") {
+  if (resolvedStatus === "ongoing") {
     return "ongoing";
   }
 
-  if (storedStatus === "completed") {
+  if (resolvedStatus === "completed") {
     return "completed";
   }
 
