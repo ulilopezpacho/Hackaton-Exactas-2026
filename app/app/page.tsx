@@ -8,7 +8,6 @@ import {
   PlaneTakeoffIcon,
   PlusIcon,
   RouteIcon,
-  SparklesIcon,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -60,26 +59,22 @@ export default async function HomePage() {
   ];
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 py-8">
-      <div className="grid gap-5 lg:grid-cols-[1fr_19rem]">
-        <div className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
-          <div className="relative min-h-72 bg-linear-to-br from-[#E3B79C] to-[#B05E40] p-6 md:p-8">
-            <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_18%_8%,rgba(255,255,255,0.35),rgba(255,255,255,0)_55%)]" />
-            <div className="absolute inset-0 bg-linear-to-t from-foreground/35 to-transparent" />
-            <div className="relative flex flex-col justify-between gap-16">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className="bg-card/90 uppercase tracking-[0.16em] text-foreground" variant="secondary">
-                  <SparklesIcon data-icon="inline-start" />
-                  Nuevo
-                </Badge>
-              </div>
-              <div className="text-primary-foreground">
-                <h1 className="max-w-2xl font-heading text-4xl leading-[1.04] font-semibold text-balance md:text-6xl">
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-5 py-8 md:py-10">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="overflow-hidden rounded-[20px] border border-primary/20 bg-primary text-primary-foreground">
+          <div className="relative min-h-80 p-6 md:p-9">
+            <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(118deg,transparent_0_25%,rgba(255,255,255,.2)_25%_25.5%,transparent_25.5%_52%,rgba(255,255,255,.15)_52%_52.5%,transparent_52.5%),linear-gradient(28deg,transparent_0_42%,rgba(255,255,255,.15)_42%_42.5%,transparent_42.5%)]" />
+            <div className="absolute -right-20 -top-24 size-72 rounded-full border border-white/20" />
+            <div className="absolute -bottom-40 right-20 size-80 rounded-full border border-white/15" />
+            <div className="relative flex min-h-64 flex-col justify-between gap-16">
+              <p className="text-sm font-medium text-primary-foreground/70">Nuevo</p>
+              <div>
+                <h1 className="max-w-2xl font-heading text-5xl leading-[0.98] font-medium text-balance md:text-7xl">
                   Decinos qué querés ver. Armamos el viaje.
                 </h1>
                 <div className="mt-6 flex flex-wrap gap-3">
                   <Button
-                    className="h-11 rounded-full bg-card px-5 text-foreground hover:bg-card/90"
+                    className="bg-card text-foreground hover:bg-secondary"
                     nativeButton={false}
                     render={<Link href="/app/trips/new/destination" />}
                     variant="secondary"
@@ -88,7 +83,7 @@ export default async function HomePage() {
                     Crear viaje
                   </Button>
                   <Button
-                    className="h-11 rounded-full border-card/70 bg-transparent px-5 text-primary-foreground hover:bg-card/10"
+                    className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:border-primary-foreground/50 hover:bg-primary-foreground/10 hover:text-primary-foreground"
                     nativeButton={false}
                     render={<Link href="/app/trips" />}
                     variant="outline"
@@ -100,13 +95,13 @@ export default async function HomePage() {
               </div>
             </div>
           </div>
-          <div className="grid gap-3 p-4 sm:grid-cols-3">
+          <div className="grid p-4 sm:grid-cols-3">
             {statCards.map((stat) => (
               <div
-                className="rounded-xl border border-border bg-background/70 px-4 py-3"
+                className="border-l border-border px-4 py-2 first:border-l-0"
                 key={stat.label}
               >
-                <p className="text-2xl font-semibold">{stat.value}</p>
+                <p className="text-2xl font-semibold" data-numeric>{stat.value}</p>
                 <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
               </div>
             ))}
@@ -117,10 +112,10 @@ export default async function HomePage() {
           {upcomingTrip ? (
             <>
               <CardHeader>
-                <Badge className="w-fit rounded-md bg-accent text-accent-foreground" variant="secondary">
+                <Badge className="w-fit" variant="success">
                   Próximo viaje
                 </Badge>
-                <CardTitle className="text-3xl">{upcomingTrip.city}</CardTitle>
+                <CardTitle className="font-heading text-4xl font-medium">{upcomingTrip.city}</CardTitle>
                 <CardDescription>
                   {upcomingTrip.country} · {upcomingTrip.tone}
                 </CardDescription>
@@ -142,7 +137,6 @@ export default async function HomePage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
-                    className="rounded-full"
                     nativeButton={false}
                     render={<Link href={upcomingTrip.href} />}
                   >
@@ -154,7 +148,7 @@ export default async function HomePage() {
           ) : (
             <>
               <CardHeader>
-                <Badge className="w-fit rounded-md bg-accent text-accent-foreground" variant="secondary">
+                <Badge className="w-fit" variant="secondary">
                   Próximo viaje
                 </Badge>
                 <CardTitle className="text-3xl">Sin viajes próximos</CardTitle>
@@ -164,7 +158,6 @@ export default async function HomePage() {
               </CardHeader>
               <CardContent>
                 <Button
-                  className="rounded-full"
                   nativeButton={false}
                   render={<Link href="/app/trips/new/destination" />}
                 >
@@ -176,24 +169,21 @@ export default async function HomePage() {
         </Card>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_19rem]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="secondary">
-              <SparklesIcon data-icon="inline-start" />
-              Rumbo
-            </Badge>
-            <Badge variant="outline">Planificador inteligente</Badge>
+          <div>
+            <p className="text-sm font-medium text-primary">Atajos</p>
+            <h2 className="mt-1 text-2xl font-semibold">Organizá el próximo paso</h2>
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
           {shortcuts.map((shortcut) => {
             const Icon = shortcut.icon;
 
             return (
               <Link className="block" href={shortcut.href} key={shortcut.title}>
-                <Card className="h-full transition hover:-translate-y-0.5 hover:ring-primary/30">
+                <Card className="h-full transition-colors hover:border-primary/40 hover:bg-card/70">
                   <CardHeader>
-                    <div className="flex size-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+                    <div className="flex size-10 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
                       <Icon className="size-5" />
                     </div>
                     <CardTitle>{shortcut.title}</CardTitle>
@@ -219,7 +209,7 @@ export default async function HomePage() {
                 Todavía no hay viajes para mostrar.
               </p>
             ) : recentTrips.map((trip) => (
-              <div className="grid gap-1 border-b pb-4 last:border-b-0 last:pb-0" key={trip.id}>
+              <div className="grid gap-1 border-b border-border pb-4 last:border-b-0 last:pb-0" key={trip.id}>
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold">{trip.city}</p>
                   <time className="text-xs text-muted-foreground">{formatUpdatedAt(trip.updatedAt)}</time>

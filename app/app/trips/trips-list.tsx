@@ -30,7 +30,7 @@ const statusCopy: Record<
 > = {
   completed: {
     label: "Completado",
-    tone: "text-muted-foreground",
+    tone: "bg-secondary text-muted-foreground",
   },
   draft: {
     label: "Borrador",
@@ -38,15 +38,15 @@ const statusCopy: Record<
   },
   generating: {
     label: "Generando",
-    tone: "border-primary/40 bg-primary/10 text-primary",
+    tone: "bg-info text-info-foreground",
   },
   ongoing: {
     label: "En viaje",
-    tone: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700",
+    tone: "bg-success text-success-foreground",
   },
   upcoming: {
     label: "Próximo",
-    tone: "border-border text-foreground",
+    tone: "bg-primary/10 text-primary",
   },
 };
 
@@ -99,7 +99,7 @@ export function TripsList({ trips }: { trips: TripOverview[] }) {
       <div className="grid gap-5">
         <div className="flex flex-col gap-3">
           <div className="flex items-baseline justify-between px-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-accent-foreground">
+            <p className="text-sm font-semibold text-foreground">
               Tus viajes
             </p>
             <p className="text-sm font-medium text-muted-foreground">
@@ -116,7 +116,6 @@ export function TripsList({ trips }: { trips: TripOverview[] }) {
                 </CardDescription>
                 <div>
                   <Button
-                    className="rounded-full"
                     nativeButton={false}
                     render={<Link href="/app/trips/new/destination" />}
                   >
@@ -132,27 +131,27 @@ export function TripsList({ trips }: { trips: TripOverview[] }) {
             return (
               <Card
                 className={cn(
-                  "transition [--card-spacing:0px] hover:-translate-y-0.5 hover:ring-primary/30",
-                  isDraft && "bg-secondary/35 hover:ring-muted-foreground/20",
+                  "transition-colors [--card-spacing:0px] hover:border-primary/35",
+                  isDraft && "bg-secondary/35 hover:border-border-strong",
                 )}
                 key={trip.id}
               >
                 <CardContent className="grid p-0 sm:grid-cols-[7rem_1fr]">
                   <div
                     className={cn(
-                      "relative min-h-24 bg-linear-to-br sm:min-h-full",
+                      "relative min-h-24 overflow-hidden bg-linear-to-br sm:min-h-full",
                       trip.stripeClass,
                     )}
                   >
-                    <div className="absolute inset-0 bg-[radial-gradient(120%_90%_at_18%_8%,rgba(255,255,255,0.35),rgba(255,255,255,0)_55%)]" />
-                    <div className="absolute inset-x-5 bottom-5 h-1.5 rounded-full bg-card/70" />
+                    <div className="absolute inset-0 bg-primary/35 mix-blend-multiply" />
+                    <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(115deg,transparent_0_30%,rgba(255,255,255,.5)_30%_31%,transparent_31%_58%,rgba(255,255,255,.3)_58%_59%,transparent_59%)]" />
                   </div>
                   <div className="flex min-w-0 flex-col gap-3 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <CardTitle className="text-2xl">{trip.city}</CardTitle>
-                          <Badge className={cn("rounded-md text-[0.65rem] uppercase tracking-[0.06em]", status.tone)} variant="outline">
+                          <Badge className={status.tone} variant="outline">
                             {status.label}
                           </Badge>
                         </div>
@@ -179,7 +178,6 @@ export function TripsList({ trips }: { trips: TripOverview[] }) {
 
                     <div className="flex flex-wrap gap-2">
                       <Button
-                        className="rounded-full"
                         nativeButton={false}
                         render={<Link href={trip.href} />}
                         size="sm"

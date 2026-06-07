@@ -83,7 +83,7 @@ function PlaceItem({
             seed={item.place?.id ?? item.id}
           />
           <div className="min-w-0 flex-1">
-            <p className="font-heading text-base font-semibold">
+            <p className="text-base font-semibold">
               {item.place?.name ?? item.title}
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -116,7 +116,7 @@ function Timeline({ day }: { day: ItineraryDayDto }) {
   return (
     <div>
       <div className="mb-5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className="font-heading text-2xl font-semibold">{day.title}</h2>
+        <h2 className="text-2xl font-semibold">{day.title}</h2>
         <span className="text-sm capitalize text-muted-foreground">
           {day.dateLabel}
         </span>
@@ -186,11 +186,11 @@ function Timeline({ day }: { day: ItineraryDayDto }) {
               <div className="min-w-0 pb-4">
                 {isRecommendation ? (
                   <div className="rounded-2xl border border-dashed border-primary bg-primary/5 p-4">
-                    <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+                    <p className="flex items-center gap-2 text-xs font-semibold text-primary">
                       <SparklesIcon className="size-4" />
                       Hueco libre
                     </p>
-                    <h3 className="mt-2 font-heading text-lg font-semibold">
+                    <h3 className="mt-2 text-lg font-semibold">
                       {item.title}
                     </h3>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -384,10 +384,10 @@ export function ItineraryExplorer({
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+          <p className="text-sm font-medium text-primary">
             {trip.title} · {trip.country}
           </p>
-          <h1 className="mt-2 font-heading text-4xl font-semibold tracking-tight">
+          <h1 className="mt-2 text-4xl font-semibold tracking-tight">
             {trip.dayCount} días, listos
           </h1>
         </div>
@@ -397,16 +397,16 @@ export function ItineraryExplorer({
       </div>
 
       <Tabs defaultValue="list">
-        <TabsList className="w-full rounded-full sm:w-72">
+        <TabsList className="w-full sm:w-72">
           <TabsTrigger
-            className="data-active:bg-white data-active:shadow-sm"
+            className="data-active:bg-card"
             value="list"
           >
             <ListIcon data-icon="inline-start" />
             Lista
           </TabsTrigger>
           <TabsTrigger
-            className="data-active:bg-white data-active:shadow-sm"
+            className="data-active:bg-card"
             value="map"
           >
             <MapIcon data-icon="inline-start" />
@@ -464,7 +464,7 @@ export function ItineraryExplorer({
         <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
           <div className="mx-auto w-full max-w-6xl">
             <StartTravelButton
-              className="w-full rounded-full"
+              className="w-full"
               isOwner={trip.isOwner}
               tripId={trip.id}
             />

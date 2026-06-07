@@ -151,7 +151,7 @@ function StartTravelSheet({ trip }: { trip: TripDto }) {
         >
           <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-border" />
           <SheetHeader className="px-5 pb-2">
-            <SheetTitle className="font-heading text-2xl font-semibold">
+            <SheetTitle className="text-2xl font-semibold">
               ¿Dónde empezás?
             </SheetTitle>
             <SheetDescription>
@@ -196,7 +196,7 @@ function StartTravelSheet({ trip }: { trip: TripDto }) {
                       seed={item.place?.id ?? item.id}
                     />
                     <span className="min-w-0 flex-1">
-                      <span className="block font-heading text-base font-semibold">
+                      <span className="block text-base font-semibold">
                         {itemName(item)}
                       </span>
                       <span className="mt-1 block text-xs text-muted-foreground">
@@ -221,7 +221,7 @@ function StartTravelSheet({ trip }: { trip: TripDto }) {
 
           <SheetFooter className="px-5">
             <Button
-              className="h-12 w-full rounded-full"
+              className="h-12 w-full"
               disabled={!itemId || pending}
               onClick={startTravel}
               size="lg"
@@ -267,7 +267,7 @@ function ReplanOption({
         <Icon className="size-5" />
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block font-heading text-base font-semibold">
+        <span className="block text-base font-semibold">
           {title}
         </span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -395,7 +395,7 @@ function ReplanSheet({
       >
         <div className="mx-auto mt-2 h-1.5 w-10 rounded-full bg-border" />
         <SheetHeader className="px-5 pb-2">
-          <SheetTitle className="flex items-center gap-2 font-heading text-2xl font-semibold">
+          <SheetTitle className="flex items-center gap-2 text-2xl font-semibold">
             <AlertTriangleIcon className="size-6 text-primary" />
             Replanificar
           </SheetTitle>
@@ -407,7 +407,6 @@ function ReplanSheet({
         <div className="grid gap-4 px-5">
           <div className="flex gap-2 overflow-x-auto">
             <Button
-              className="rounded-full"
               onClick={() => setScenario("overstay")}
               variant={scenario === "overstay" ? "default" : "outline"}
             >
@@ -415,7 +414,6 @@ function ReplanSheet({
               Me quedé de más
             </Button>
             <Button
-              className="rounded-full"
               onClick={() => setScenario("closed")}
               variant={scenario === "closed" ? "default" : "outline"}
             >
@@ -542,7 +540,7 @@ function ReplanSheet({
 
         <SheetFooter className="px-5">
           <Button
-            className="h-12 w-full rounded-full"
+            className="h-12 w-full"
             disabled={
               pending ||
               (strategy === "recommended" &&
@@ -569,7 +567,7 @@ function CompletedTravel({ trip }: { trip: TripDto }) {
         <span className="mx-auto grid size-20 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg">
           <CheckCircle2Icon className="size-10" />
         </span>
-        <h1 className="mt-6 font-heading text-3xl font-semibold">
+        <h1 className="mt-6 text-3xl font-semibold">
           Viaje completado
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -577,7 +575,7 @@ function CompletedTravel({ trip }: { trip: TripDto }) {
           volver a consultarlo.
         </p>
         <Button
-          className="mt-6 rounded-full"
+          className="mt-6"
           onClick={() => router.push(`/app/trips/${trip.id}`)}
           size="lg"
         >
@@ -627,7 +625,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
     return (
       <div className="grid min-h-screen place-items-center px-5 text-center">
         <div>
-          <h1 className="font-heading text-2xl font-semibold">
+          <h1 className="text-2xl font-semibold">
             No encontramos el punto actual
           </h1>
           <Button
@@ -687,8 +685,8 @@ export function TravelMode({ trip }: { trip: TripDto }) {
           >
             <ChevronLeftIcon className="size-5" />
           </Button>
-          <div className="flex h-10 items-center gap-2 rounded-full bg-white/90 px-4 text-xs font-semibold shadow-md backdrop-blur">
-            <span className="size-2 rounded-full bg-emerald-500 motion-safe:animate-pulse" />
+          <div className="flex h-10 items-center gap-2 rounded-lg border border-border bg-card/95 px-4 text-xs font-semibold shadow-md backdrop-blur">
+            <span className="size-2 rounded-full bg-success-foreground motion-safe:animate-pulse" />
             Modo viaje · Día {currentPoint.dayNumber}
           </div>
           <span className="size-10" />
@@ -698,7 +696,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
       <main className="relative z-10 mx-auto -mt-12 grid w-full max-w-2xl gap-5 px-4">
         <section className="rounded-[1.75rem] border bg-card p-4 shadow-lg">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+            <p className="flex items-center gap-2 text-xs font-semibold text-primary">
               <span className="size-2 rounded-full bg-primary motion-safe:animate-pulse" />
               Estás acá
             </p>
@@ -712,7 +710,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
               seed={currentPoint.item.place?.id ?? currentPoint.item.id}
             />
             <div className="min-w-0 flex-1">
-              <h1 className="font-heading text-2xl font-semibold leading-tight">
+              <h1 className="text-2xl font-semibold leading-tight">
                 {itemName(currentPoint.item)}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
@@ -731,7 +729,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
 
         {upcoming.length ? (
           <section>
-            <p className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <p className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold text-muted-foreground">
               <MapPinIcon className="size-4" />
               A continuación
             </p>
@@ -752,7 +750,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
                     seed={item.place?.id ?? item.id}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-heading font-semibold">
+                    <p className="truncate font-semibold">
                       {itemName(item)}
                     </p>
                     <p className="text-xs text-muted-foreground">
@@ -778,7 +776,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
       <div className="fixed inset-x-0 bottom-0 z-40 bg-linear-to-t from-background via-background to-transparent px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8">
         <div className="mx-auto flex w-full max-w-2xl gap-2">
           <Button
-            className="h-12 rounded-full"
+            className="h-12"
             disabled={pending}
             onClick={() => setSheetOpen(true)}
             size="lg"
@@ -788,7 +786,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
             Algo cambió
           </Button>
           <Button
-            className="h-12 flex-1 rounded-full"
+            className="h-12 flex-1"
             disabled={pending}
             onClick={advance}
             size="lg"

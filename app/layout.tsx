@@ -1,10 +1,5 @@
-import "@fontsource/public-sans/400.css";
-import "@fontsource/public-sans/500.css";
-import "@fontsource/public-sans/600.css";
-import "@fontsource/public-sans/700.css";
-import "@fontsource/spectral/500.css";
-import "@fontsource/spectral/600.css";
-import "@fontsource/spectral/700.css";
+import "@fontsource-variable/newsreader";
+import "@fontsource-variable/onest";
 
 import type { Metadata } from "next";
 import "./globals.css";

@@ -26,7 +26,7 @@ function SelectableCard({ className, description, label, ...props }: OptionCardP
           className,
         )}
       >
-        <span className="font-heading text-lg leading-tight font-medium">{label}</span>
+        <span className="text-lg leading-tight font-semibold">{label}</span>
         <span className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</span>
       </span>
     </label>
@@ -45,7 +45,7 @@ export function InterestFields({ selected = [] }: { selected?: string[] }) {
             type="checkbox"
             value={interest}
           />
-          <span className="inline-flex h-10 items-center rounded-full border border-border bg-card px-4 text-sm font-semibold shadow-sm transition peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:ring-3 peer-focus-visible:ring-ring/40">
+          <span className="inline-flex min-h-11 items-center rounded-[10px] border border-border bg-card px-4 text-sm font-semibold transition-colors peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:ring-3 peer-focus-visible:ring-ring/30">
             {interest}
           </span>
         </label>

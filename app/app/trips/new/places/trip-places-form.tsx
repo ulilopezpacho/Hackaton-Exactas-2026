@@ -220,7 +220,7 @@ export function TripPlacesForm({
         </CardHeader>
         <CardContent className="grid gap-4">
           <div className="relative">
-            <div className="flex h-13 items-center gap-3 rounded-full border border-border bg-background px-4 shadow-sm focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/20">
+            <div className="flex h-13 items-center gap-3 rounded-[10px] border border-input bg-card px-4 focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/20">
               <SearchIcon className="size-4 text-muted-foreground" />
               <Input
                 autoComplete="off"
@@ -230,7 +230,6 @@ export function TripPlacesForm({
                 value={query}
               />
               <Button
-                className="rounded-full"
                 disabled={!query.trim()}
                 onClick={addManualPlace}
                 size="sm"
@@ -255,7 +254,7 @@ export function TripPlacesForm({
                     }}
                     type="button"
                   >
-                    <span className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <span className="flex size-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
                       <MapPinGlyph />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -362,7 +361,7 @@ export function TripPlacesForm({
 
       <div className="sticky bottom-0 -mx-5 flex items-center gap-4 border-t bg-background/85 px-5 py-4 backdrop-blur">
         <div className="min-w-24">
-          <p className="font-heading text-xl font-semibold">
+          <p className="text-xl font-semibold">
             {places.length} prioridades
           </p>
           <p className="text-xs text-muted-foreground">
@@ -370,7 +369,7 @@ export function TripPlacesForm({
           </p>
         </div>
         <Button
-          className="h-12 flex-1 rounded-full"
+          className="h-12 flex-1"
           disabled={places.length === 0}
           type="submit"
         >

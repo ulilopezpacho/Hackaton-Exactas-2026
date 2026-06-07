@@ -52,7 +52,7 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
     <PageShell eyebrow="Perfil" title="Mi perfil">
       <Card>
         <CardContent className="flex items-center gap-4 p-5">
-          <div className="grid size-16 shrink-0 place-items-center rounded-full bg-primary font-heading text-2xl font-semibold text-primary-foreground shadow-sm ring-4 ring-primary/15">
+          <div className="grid size-16 shrink-0 place-items-center rounded-xl bg-primary text-2xl font-semibold text-primary-foreground">
             {initial}
           </div>
           <div className="min-w-0">

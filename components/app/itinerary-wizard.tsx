@@ -125,12 +125,12 @@ export function ItineraryWizard({
           <SparklesIcon className="size-8" />
         </div>
         <div>
-          <h2 className="text-xl font-heading font-semibold text-foreground">Ups, hubo un problema</h2>
+          <h2 className="text-xl font-semibold text-foreground">Ups, hubo un problema</h2>
           <p className="mt-2 text-muted-foreground max-w-xs">{error}</p>
         </div>
         <button
           onClick={() => window.location.reload()}
-          className="mt-4 px-6 py-2 rounded-full bg-primary text-primary-foreground font-medium"
+          className="mt-4 rounded-[10px] bg-primary px-6 py-2 font-medium text-primary-foreground"
         >
           Reintentar
         </button>
@@ -140,16 +140,16 @@ export function ItineraryWizard({
 
   return (
     <div className="flex flex-col items-center px-6 py-10">
-      <div className="relative mb-12 flex size-28 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-2xl shadow-primary/30">
+      <div className="relative mb-12 flex size-24 items-center justify-center rounded-[20px] bg-primary text-primary-foreground shadow-xl shadow-primary/20">
         <div className="absolute inset-0 animate-ping rounded-full bg-primary/20 duration-1000" />
         <SparklesIcon className="size-12" />
       </div>
 
       <div className="text-center">
-        <p className="mb-2 text-xs font-bold uppercase tracking-widest text-primary/80">
+        <p className="mb-2 text-sm font-semibold text-primary/80">
           Armando tu viaje
         </p>
-        <h1 className="max-w-xs font-heading text-3xl font-semibold leading-tight text-foreground">
+        <h1 className="max-w-xs text-3xl font-semibold leading-tight text-foreground">
           Diseñando los {dayCount} días perfectos en {tripTitle}
         </h1>
       </div>

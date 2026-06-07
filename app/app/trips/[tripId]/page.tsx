@@ -67,7 +67,7 @@ export default async function TripPage({
           <Badge className="mb-4 bg-white/90 text-foreground" variant="secondary">
             {tripStatusLabel(trip.travelStatus)}
           </Badge>
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-white/80">
+          <p className="text-sm font-medium text-white/80">
             {trip.country}
           </p>
           <h1 className="mt-2 max-w-2xl font-heading text-5xl font-semibold tracking-tight sm:text-6xl">

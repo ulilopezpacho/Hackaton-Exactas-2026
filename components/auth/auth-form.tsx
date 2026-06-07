@@ -34,8 +34,9 @@ export function AuthForm({
   title,
 }: AuthFormProps) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-5 py-10 text-foreground">
-      <Card className="w-full max-w-sm">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-primary px-5 py-10 text-foreground">
+      <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(118deg,transparent_0_28%,rgba(255,255,255,.22)_28%_29%,transparent_29%_58%,rgba(255,255,255,.15)_58%_59%,transparent_59%),linear-gradient(28deg,transparent_0_45%,rgba(255,255,255,.14)_45%_46%,transparent_46%)]" />
+      <Card className="relative w-full max-w-sm shadow-xl shadow-foreground/15">
         <CardHeader>
           <CardTitle className="text-2xl">{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
@@ -47,7 +48,6 @@ export function AuthForm({
               Email
               <Input
                 autoComplete="email"
-                className="h-11"
                 name="email"
                 placeholder="email@example.com"
                 required
@@ -58,7 +58,6 @@ export function AuthForm({
               Contraseña
               <Input
                 autoComplete="current-password"
-                className="h-11"
                 minLength={6}
                 name="password"
                 required
@@ -75,7 +74,7 @@ export function AuthForm({
                 {message}
               </p>
             ) : null}
-            <Button className="h-11 w-full" type="submit">
+            <Button className="w-full" type="submit">
               {buttonLabel}
             </Button>
           </form>

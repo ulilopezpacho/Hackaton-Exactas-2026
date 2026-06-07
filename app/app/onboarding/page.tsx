@@ -120,13 +120,13 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
       <main className="min-h-screen bg-background px-5 py-8 text-foreground">
         <section className="mx-auto flex w-full max-w-2xl flex-col gap-6">
           <div className="space-y-3">
-            <div className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+            <div className="text-sm font-semibold text-primary">
               Rumbo · Onboarding
             </div>
           </div>
           <Card className="shadow-sm">
             <CardHeader>
-              <CardDescription className="font-bold tracking-[0.16em] text-primary uppercase">
+              <CardDescription className="font-semibold text-primary">
                 Configuración pendiente
               </CardDescription>
               <CardTitle className="text-3xl">No pudimos preparar tus preferencias</CardTitle>
@@ -143,7 +143,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
               </p>
             </CardContent>
             <CardFooter>
-              <Button className="h-11 rounded-full" render={<a href="/app/onboarding" />}>
+              <Button render={<a href="/app/onboarding" />}>
                 Reintentar
               </Button>
             </CardFooter>
@@ -170,7 +170,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
     <main className="min-h-screen bg-background px-5 py-8 text-foreground">
       <section className="mx-auto flex w-full max-w-2xl flex-col gap-6">
         <div className="space-y-3">
-          <div className="text-xs font-bold tracking-[0.16em] text-primary uppercase">
+          <div className="text-sm font-semibold text-primary">
             Rumbo · Onboarding
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-secondary">
@@ -186,7 +186,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
 
         <Card className="shadow-sm">
           <CardHeader>
-            <CardDescription className="font-bold tracking-[0.16em] text-primary uppercase">
+            <CardDescription className="font-semibold text-primary">
               {copy.eyebrow}
             </CardDescription>
             <CardTitle className="text-3xl">{copy.title}</CardTitle>
@@ -203,7 +203,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
               <form action={saveOnboardingInterests} className="grid gap-5">
                 <InterestRequirement />
                 <InterestFields selected={preferences.interests} />
-                <Button className="h-12 rounded-full" type="submit">
+                <Button className="h-12" type="submit">
                   {copy.button}
                 </Button>
               </form>
@@ -213,7 +213,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
               <form action={saveOnboardingPace} className="grid gap-5">
                 <PreferenceHint>Elegí el ritmo que más se parezca a tus viajes ideales.</PreferenceHint>
                 <PaceFields selected={preferences.pace} />
-                <Button className="h-12 rounded-full" type="submit">
+                <Button className="h-12" type="submit">
                   {copy.button}
                 </Button>
               </form>
@@ -222,7 +222,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
             {step === "prompt" ? (
               <form action={saveOnboardingPrompt} className="grid gap-5">
                 <PromptField value={preferences.travel_style_prompt} />
-                <Button className="h-12 rounded-full" type="submit">
+                <Button className="h-12" type="submit">
                   {copy.button}
                 </Button>
               </form>
@@ -232,7 +232,7 @@ export default async function OnboardingPage({ searchParams }: OnboardingPagePro
               <form action={completeOnboardingBudget} className="grid gap-5">
                 <PreferenceHint>Elegí un rango. Más adelante lo podés cambiar desde Perfil.</PreferenceHint>
                 <BudgetFields selected={preferences.budget} />
-                <Button className="h-12 rounded-full" type="submit">
+                <Button className="h-12" type="submit">
                   {copy.button}
                 </Button>
               </form>

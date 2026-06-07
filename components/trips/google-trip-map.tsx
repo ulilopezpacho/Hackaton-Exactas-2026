@@ -14,7 +14,7 @@ type GoogleTripMapProps = {
   showAllControl?: boolean;
 };
 
-const MARKER_COLORS = ["#C45124", "#287271", "#C28B22", "#6D5A9C", "#3F7D4B"];
+const MARKER_COLORS = ["#0B5D4B", "#C9472E", "#2F6F91", "#9A6A20", "#755A8A"];
 const NEARBY_THRESHOLD = 0.003;
 const SPREAD_RADIUS = 0.0035;
 const CLEAN_MAP_STYLES: google.maps.MapTypeStyle[] = [
@@ -228,7 +228,7 @@ export function GoogleTripMap({
             icon: {
               path: "M 0,-1 0,1",
               scale: 2.5,
-              strokeColor: "#9A684F",
+              strokeColor: "#0B5D4B",
               strokeOpacity: 0.75,
               strokeWeight: 2,
             },
@@ -298,7 +298,7 @@ export function GoogleTripMap({
       <div className="grid min-h-96 place-items-center rounded-3xl border border-dashed bg-muted/50 p-8 text-center">
         <div className="max-w-sm">
           <MapIcon className="mx-auto mb-4 size-8 text-primary" />
-          <p className="font-heading text-xl font-semibold">
+          <p className="text-xl font-semibold">
             El mapa está listo para conectarse
           </p>
           <p className="mt-2 text-sm text-muted-foreground">
@@ -323,7 +323,7 @@ export function GoogleTripMap({
           {showAllControl ? (
             <button
               aria-label="Ver todas las paradas"
-              className="absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-full border bg-white px-3 py-2 text-xs font-semibold text-foreground shadow-md transition hover:bg-stone-50"
+              className="absolute right-3 top-3 z-10 inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground shadow-md transition-colors hover:bg-secondary"
               onClick={showAllMarkers}
               type="button"
             >

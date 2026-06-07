@@ -203,17 +203,17 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
       <input name="endsOn" type="hidden" value={endsOn} />
 
       <div className="grid gap-5 lg:grid-cols-[1fr_1.05fr]">
-        <Card className="relative min-h-80 overflow-hidden border-primary/10 bg-card">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_15%,rgba(191,90,54,0.18),transparent_32%),linear-gradient(135deg,rgba(227,183,156,0.55),transparent_45%)]" />
+        <Card className="relative min-h-80 overflow-hidden border-primary/20 bg-primary text-primary-foreground">
+          <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(118deg,transparent_0_28%,rgba(255,255,255,.2)_28%_29%,transparent_29%_58%,rgba(255,255,255,.15)_58%_59%,transparent_59%),linear-gradient(28deg,transparent_0_45%,rgba(255,255,255,.14)_45%_46%,transparent_46%)]" />
           <CardHeader className="relative">
-            <Badge className="w-fit" variant="secondary">
+            <Badge className="w-fit bg-primary-foreground/12 text-primary-foreground" variant="secondary">
               <SparklesIcon data-icon="inline-start" />
               Rumbo
             </Badge>
             <CardTitle className="mt-8 max-w-sm text-4xl leading-tight">
               Decinos dónde vas. Armamos el camino.
             </CardTitle>
-            <CardDescription className="max-w-sm text-base">
+            <CardDescription className="max-w-sm text-base text-primary-foreground/70">
               Buscá una ciudad y elegí el rango del viaje.
             </CardDescription>
           </CardHeader>
@@ -232,7 +232,7 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
             </CardHeader>
             <CardContent className="grid gap-3">
               <div ref={cityControlRef}>
-                <div className="flex h-13 items-center gap-3 rounded-full border border-border bg-background px-4 shadow-sm focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/20">
+                <div className="flex h-13 items-center gap-3 rounded-[10px] border border-input bg-card px-4 focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/20">
                   <SearchIcon className="size-4 text-muted-foreground" />
                   <Input
                     autoComplete="off"
@@ -250,7 +250,7 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
                     }}
                   />
                   {selectedCity ? (
-                    <Badge className="rounded-full" variant="secondary">
+                    <Badge variant="secondary">
                       Seleccionada
                     </Badge>
                   ) : null}
@@ -291,7 +291,7 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
                   <Button
                     aria-expanded={dateOpen}
                     className={cn(
-                      "h-12 w-full justify-start rounded-full border-border bg-background px-4 text-left font-normal shadow-sm",
+                      "h-12 w-full justify-start border-border bg-card px-4 text-left font-normal",
                       !range?.from && "text-muted-foreground",
                     )}
                     type="button"
@@ -312,7 +312,6 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
                     <p className="text-sm font-semibold">Rango de fechas</p>
                     {range?.from ? (
                       <Button
-                        className="rounded-full"
                         size="sm"
                         type="button"
                         variant="ghost"
@@ -354,7 +353,7 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
 
       <div className="flex justify-end">
         <Button
-          className="h-11 rounded-full px-6"
+          className="px-6"
           disabled={!canContinue}
           type="submit"
         >
@@ -368,7 +367,7 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
       cityBox
         ? createPortal(
             <div
-              className="overflow-y-auto rounded-2xl border bg-card shadow-2xl"
+              className="overflow-y-auto rounded-xl border bg-card shadow-xl shadow-foreground/10"
               ref={cityOverlayRef}
               style={{
                 left: cityBox.left,
@@ -405,7 +404,7 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
                   type="button"
                   onClick={() => selectCity(city)}
                 >
-                  <span className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <span className="flex size-9 items-center justify-center rounded-[10px] bg-primary/10 text-primary">
                     <MapPinIcon className="size-4" />
                   </span>
                   <span className="min-w-0 flex-1">

@@ -25,9 +25,9 @@ export default async function AppLayout({
 
   return (
     <main className="app-shell min-h-screen bg-background text-foreground">
-      <header className="app-header sticky top-0 z-10 border-b border-border/70 bg-background/90 backdrop-blur-sm">
-        <div className="mx-auto flex min-h-14 w-full max-w-5xl items-center justify-between gap-4 px-5 py-2.5">
-          <Link className="font-heading text-lg font-semibold" href="/app">
+      <header className="app-header sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur-md">
+        <div className="mx-auto flex min-h-16 w-full max-w-6xl items-center justify-between gap-4 px-5 py-2.5">
+          <Link className="text-lg font-bold tracking-[-0.03em]" href="/app">
             Rumbo
           </Link>
           <nav className="flex items-center gap-3 text-sm font-medium">

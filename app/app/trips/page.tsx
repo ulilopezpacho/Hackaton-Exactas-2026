@@ -10,15 +10,15 @@ export default async function TripsPage() {
   const { trips } = await getTripsOverview();
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8">
+    <section className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-5 py-8 md:py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="font-heading text-4xl font-semibold tracking-normal">
+          <p className="mb-2 text-sm font-medium text-primary">Tu mapa personal</p>
+          <h1 className="text-4xl font-semibold tracking-tight">
             Mis viajes
           </h1>
         </div>
         <Button
-          className="h-10 rounded-full px-5"
           nativeButton={false}
           render={<Link href="/app/trips/new/destination" />}
         >

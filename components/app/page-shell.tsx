@@ -23,8 +23,10 @@ export function PageShell({ actions, children, eyebrow, title }: PageShellProps)
     <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          {eyebrow ? <Badge variant="secondary">{eyebrow}</Badge> : null}
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">{title}</h1>
+          {eyebrow ? (
+            <p className="mb-2 text-sm font-medium text-primary">{eyebrow}</p>
+          ) : null}
+          <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">{title}</h1>
         </div>
         {actions}
       </div>
@@ -50,7 +52,7 @@ export function WorkCard({
 }: WorkCardProps) {
   return (
     <Link className="block" href={href}>
-      <Card className="h-full transition hover:-translate-y-0.5 hover:ring-primary/40">
+      <Card className="h-full transition-colors hover:border-primary/40">
         <CardHeader>
           <div className="flex items-start justify-between gap-3">
             <CardTitle>{title}</CardTitle>

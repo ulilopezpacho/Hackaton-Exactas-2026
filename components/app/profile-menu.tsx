@@ -16,14 +16,14 @@ export function ProfileMenu({ initial, signOutAction }: ProfileMenuProps) {
       <button
         aria-expanded={open}
         aria-label="Abrir perfil"
-        className="grid size-10 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground shadow-sm ring-2 ring-primary/20 transition hover:bg-primary/90 focus-visible:ring-3 focus-visible:ring-ring/40 focus-visible:outline-none"
+        className="grid size-10 place-items-center rounded-[10px] bg-primary text-sm font-bold text-primary-foreground transition-colors hover:bg-primary-hover focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
         onClick={() => setOpen((value) => !value)}
         type="button"
       >
         {initial}
       </button>
       {open ? (
-        <div className="absolute right-0 z-20 mt-3 w-44 overflow-hidden rounded-xl border border-border bg-card py-2 text-sm font-medium shadow-lg">
+        <div className="absolute right-0 z-20 mt-3 w-44 overflow-hidden rounded-xl border border-border bg-card py-2 text-sm font-medium shadow-lg shadow-foreground/8">
           <Link
             className="block px-4 py-2.5 text-muted-foreground transition hover:bg-secondary hover:text-foreground"
             href="/app/profile"
