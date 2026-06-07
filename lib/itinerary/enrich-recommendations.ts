@@ -44,6 +44,13 @@ interface RecommendationMatch {
   candidate: PlaceCandidate;
 }
 
+interface RecommendationSearch {
+  dayIndex: number;
+  itemIndex: number;
+  kind: "meal" | "activity";
+  candidates: PlaceCandidate[];
+}
+
 const MEAL_TITLES = new Set(["almuerzo", "merienda", "cena"]);
 const FOOD_TYPES = new Set([
   "acai_shop",
@@ -183,17 +190,18 @@ export async function enrichRecommendations({
       if (!center) return null;
 
       try {
-        const candidate = isMealRecommendation(item.title)
-          ? await findMealCandidate(center, budget, searchPlacesFn)
-          : await findActivityCandidate(center, searchPlacesFn, random);
+        const kind = isMealRecommendation(item.title) ? "meal" : "activity";
+        const candidates =
+          kind === "meal"
+            ? await findMealCandidates(center, budget, searchPlacesFn)
+            : await findActivityCandidates(center, searchPlacesFn);
 
-        return candidate
-          ? {
-              dayIndex: day.dayIndex,
-              itemIndex,
-              candidate,
-            }
-          : null;
+        return {
+          dayIndex: day.dayIndex,
+          itemIndex,
+          kind,
+          candidates,
+        };
       } catch (error) {
         console.warn(
           `[enrichRecommendations] Could not enrich day ${day.dayIndex + 1}, item ${itemIndex}:`,
@@ -204,9 +212,31 @@ export async function enrichRecommendations({
     }),
   );
 
-  const matches = (await Promise.all(searches)).filter(
-    (match): match is RecommendationMatch => match !== null,
+  const recommendationSearches = (await Promise.all(searches)).filter(
+    (search): search is RecommendationSearch => search !== null,
   );
+  const usedExternalIds = new Set<string>();
+  const matches: RecommendationMatch[] = [];
+
+  for (const search of recommendationSearches) {
+    const availableCandidates = search.candidates.filter(
+      (candidate) => !usedExternalIds.has(candidate.externalId),
+    );
+    const candidate =
+      search.kind === "meal"
+        ? selectBestRated(availableCandidates)
+        : selectRandomNearbyActivity(availableCandidates, random);
+
+    if (!candidate) continue;
+
+    usedExternalIds.add(candidate.externalId);
+    matches.push({
+      dayIndex: search.dayIndex,
+      itemIndex: search.itemIndex,
+      candidate,
+    });
+  }
+
   if (matches.length === 0) return result;
 
   const uniqueCandidates = Array.from(
@@ -292,11 +322,11 @@ export async function enrichRecommendations({
   }
 }
 
-async function findMealCandidate(
+async function findMealCandidates(
   center: Coordinates,
   budget: Budget,
   searchPlacesFn: SearchPlacesFn,
-): Promise<PlaceCandidate | null> {
+): Promise<PlaceCandidate[]> {
   const priceLevels = budgetToPriceLevels(budget);
   const options: SearchPlacesOptions = {
     query: "restaurantes",
@@ -318,15 +348,14 @@ async function findMealCandidate(
     });
   }
 
-  return selectBestRated(candidates);
+  return candidates;
 }
 
-async function findActivityCandidate(
+async function findActivityCandidates(
   center: Coordinates,
   searchPlacesFn: SearchPlacesFn,
-  random: () => number,
-): Promise<PlaceCandidate | null> {
-  const candidates = await searchPlacesFn({
+): Promise<PlaceCandidate[]> {
+  return searchPlacesFn({
     query: "lugares para visitar",
     latBias: center.lat,
     lngBias: center.lng,
@@ -335,8 +364,6 @@ async function findActivityCandidate(
     rankPreference: "DISTANCE",
     pageSize: 20,
   });
-
-  return selectRandomNearbyActivity(candidates, random);
 }
 
 function findRecommendationCenter(
