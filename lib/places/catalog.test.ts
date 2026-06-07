@@ -9,8 +9,8 @@ import {
   normalizeName,
   type CuratedPlace,
   type PlaceSelection,
-} from "./catalog.ts";
-import type { PlaceCandidate } from "./google.ts";
+} from "./catalog";
+import type { PlaceCandidate } from "./google";
 
 // --- computeQualityScore (Bayesian shrinkage) -----------------------------
 

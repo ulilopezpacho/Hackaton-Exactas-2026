@@ -124,6 +124,7 @@ export type Database = {
           position: number;
           starts_at: string;
           title: string;
+          score: number | null;
         };
         Insert: {
           created_at?: string;
@@ -138,6 +139,7 @@ export type Database = {
           starts_at: string;
           title: string;
           updated_at?: string;
+          score?: number | null;
         };
         Update: Partial<
           Database["public"]["Tables"]["itinerary_items"]["Insert"]

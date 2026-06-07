@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseTripDates } from "./wizard.ts";
+import { parseTripDates } from "./wizard";
 
 test("parseTripDates accepts an inclusive date range", () => {
   const range = parseTripDates("2026-06-12", "2026-06-14");

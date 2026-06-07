@@ -1,4 +1,5 @@
 import { getTrip } from "@/lib/trips/data";
+import { replanWithSolver } from "@/lib/itinerary/replan-solver";
 
 type PreviewRequest = {
   scenario?: "closed" | "overstay";
@@ -49,54 +50,119 @@ export async function POST(
     });
   }
 
-  if (strategy === "recalculate") {
-    const dropItem = upcoming.at(-1);
-    const operations = dropItem
-      ? [
-          {
-            enabled: true,
-            id: `remove-${dropItem.id}`,
-            itemId: dropItem.id,
-            label: `Quitar ${dropItem.place?.name ?? dropItem.title}`,
-            type: "remove" as const,
-          },
-        ]
-      : [];
+  if (strategy === "recalculate" || strategy === "recommended") {
+    try {
+      const nextPlaceItem = upcoming.find(
+        (item) => item.itemType === "place" && item.place?.id,
+      );
+      const excludePlaceIds: string[] = [];
+      if (scenario === "closed" && nextPlaceItem?.place?.id) {
+        excludePlaceIds.push(nextPlaceItem.place.id);
+      }
 
-    return Response.json({
-      explanation: operations.length
-        ? "Quitás el último punto pendiente para liberar tiempo sin tocar el punto actual."
-        : "No quedan puntos pendientes para recalcular.",
-      operations,
-      scenario,
-      strategy,
-    });
-  }
+      const solverResult = await replanWithSolver({
+        tripId,
+        currentItemId: trip.currentItineraryItemId!,
+        currentDayNumber: trip.currentDayNumber!,
+        excludePlaceIds,
+      });
 
-  const operations =
-    scenario === "closed"
-      ? upcoming.slice(0, 1).map((item) => ({
+      const operations: Array<{
+        durationMinutes?: number;
+        enabled: boolean;
+        id: string;
+        itemId: string;
+        label: string;
+        previousDurationMinutes?: number;
+        type: "remove" | "trim";
+      }> = [];
+
+      // 1. If closed place scenario, add explicit remove operation for the closed place
+      if (scenario === "closed" && nextPlaceItem) {
+        operations.push({
           enabled: true,
-          id: `remove-${item.id}`,
-          itemId: item.id,
-          label: `Quitar ${item.place?.name ?? item.title}`,
+          id: `remove-${nextPlaceItem.id}`,
+          itemId: nextPlaceItem.id,
+          label: `Quitar ${nextPlaceItem.place?.name ?? nextPlaceItem.title} (cerrado)`,
           type: "remove" as const,
-        }))
-      : upcoming.slice(0, 2).map(trimOperation);
+        });
+      }
 
-  return Response.json({
-    explanation:
-      scenario === "closed"
-        ? operations.length
-          ? "Conviene quitar el próximo punto cerrado y conservar el resto del día."
-          : "No quedan puntos pendientes para reemplazar."
-        : operations.length
-          ? "Conviene recortar los próximos puntos para recuperar el atraso sin perder el recorrido."
-          : "No quedan puntos pendientes que necesiten ajustes.",
-    operations,
-    scenario,
-    strategy,
-  });
+      // 2. Dropped places -> remove operations
+      for (const placeId of solverResult.droppedPlaceIds) {
+        // Skip if already added as closed place
+        if (scenario === "closed" && nextPlaceItem?.place?.id === placeId) continue;
+
+        const item = upcoming.find((i) => i.place?.id === placeId);
+        if (item) {
+          operations.push({
+            enabled: true,
+            id: `remove-${item.id}`,
+            itemId: item.id,
+            label: `Quitar ${item.place?.name ?? item.title} (no entra)`,
+            type: "remove" as const,
+          });
+        }
+      }
+
+      // 3. Durations changed -> trim operations
+      for (const newItem of solverResult.newItems) {
+        if (!newItem.placeId || newItem.itemType !== "place") continue;
+        const item = upcoming.find((i) => i.place?.id === newItem.placeId);
+        if (item) {
+          const newDuration = Math.round(
+            (new Date(newItem.endsAt).getTime() - new Date(newItem.startsAt).getTime()) / 60000,
+          );
+          if (newDuration < item.durationMinutes) {
+            operations.push({
+              durationMinutes: newDuration,
+              enabled: true,
+              id: `trim-${item.id}`,
+              itemId: item.id,
+              label: `Acortar ${item.place?.name ?? item.title}`,
+              previousDurationMinutes: item.durationMinutes,
+              type: "trim" as const,
+            });
+          }
+        }
+      }
+
+      let explanation = "";
+      if (strategy === "recalculate") {
+        if (solverResult.droppedPlaceIds.length > 0) {
+          explanation = `Recalculamos el itinerario. Tuvimos que quitar ${solverResult.droppedPlaceIds.length} lugar(es) que no cabían en el tiempo disponible.`;
+        } else {
+          explanation = "Recalculamos el itinerario de forma inteligente. Logramos reordenar y conservar todos tus lugares pendientes.";
+        }
+      } else {
+        if (solverResult.droppedPlaceIds.length > 0) {
+          explanation = `Optimizamos tu día de forma inteligente. Tuvimos que quitar ${solverResult.droppedPlaceIds.length} lugar(es) que no llegaban a entrar en el horario.`;
+        } else {
+          explanation = "¡Buenas noticias! El optimizador inteligente logró reordenar todos tus lugares pendientes para que no te pierdas nada.";
+        }
+      }
+
+      if (scenario === "closed" && nextPlaceItem) {
+        explanation = `Como ${nextPlaceItem.place?.name ?? nextPlaceItem.title} cerró, ` + explanation.toLowerCase();
+        explanation = explanation.charAt(0).toUpperCase() + explanation.slice(1);
+      }
+
+      return Response.json({
+        explanation,
+        operations,
+        scenario,
+        strategy,
+      });
+    } catch (err) {
+      console.error("[replan-preview] Solver error:", err);
+      return Response.json({
+        explanation: "No se pudo calcular la recomendación inteligente.",
+        operations: [],
+        scenario,
+        strategy,
+      });
+    }
+  }
 }
 
 function trimOperation(item: {

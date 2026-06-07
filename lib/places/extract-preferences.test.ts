@@ -5,7 +5,7 @@ import {
   matchCatalogCategories,
   mergeSearchInterests,
   sanitizeExtractedInterests,
-} from "./preference-interests.ts";
+} from "./preference-interests";
 
 const MEAL_CATEGORIES = ["restaurante", "café", "cafetería", "bar", "gastro"];
 

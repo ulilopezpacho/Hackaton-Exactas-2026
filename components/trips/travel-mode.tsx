@@ -84,7 +84,7 @@ async function readJson<T>(response: Response): Promise<T> {
   return body;
 }
 
-function StartTravelSheet({ trip }: { trip: TripDto }) {
+function StartTravelSheet({ trip, warning }: { trip: TripDto; warning?: string }) {
   const router = useRouter();
   const firstDay = trip.days.find((day) => navigableItems(day).length > 0);
   const [dayNumber, setDayNumber] = useState(firstDay?.dayNumber ?? 1);
@@ -157,6 +157,12 @@ function StartTravelSheet({ trip }: { trip: TripDto }) {
             <SheetDescription>
               Elegí el día y el primer punto del modo viaje.
             </SheetDescription>
+            {warning ? (
+              <div className="mt-2 text-xs font-semibold text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/50 flex items-center gap-2">
+                <AlertTriangleIcon className="size-4 shrink-0 text-amber-500" />
+                <span>{warning}</span>
+              </div>
+            ) : null}
           </SheetHeader>
 
           <div className="grid gap-4 px-5">
@@ -359,7 +365,7 @@ function ReplanSheet({
 
     try {
       const operations =
-        strategy === "recommended"
+        strategy === "recommended" || strategy === "recalculate"
           ? (preview?.operations ?? [])
               .filter((operation) => operation.enabled)
               .map(({ durationMinutes, itemId, type }) => ({
@@ -471,7 +477,7 @@ function ReplanSheet({
 
             <ReplanOption
               active={strategy === "recalculate"}
-              description="Quitá el último punto pendiente y recuperá margen."
+              description="Recalculá el itinerario restante de forma inteligente con el tiempo disponible."
               icon={RefreshCwIcon}
               onClick={() => setStrategy("recalculate")}
               title="Recalcular itinerario"
@@ -479,20 +485,29 @@ function ReplanSheet({
             {strategy === "recalculate" ? (
               <div className="grid gap-2 rounded-xl border bg-card p-3">
                 <p className="text-sm text-muted-foreground">
-                  {preview?.strategy === "recalculate"
-                    ? preview.explanation
-                    : "Calculando alternativa…"}
+                  {preview?.explanation ?? "Recalculando itinerario…"}
                 </p>
-                {preview?.strategy === "recalculate"
-                  ? preview.operations.map((operation) => (
-                      <span
-                        className="rounded-lg bg-muted/60 px-2.5 py-1.5 text-xs"
-                        key={operation.id}
-                      >
-                        {operation.label}
-                      </span>
-                    ))
-                  : null}
+                {preview?.operations.map((operation) => (
+                  <label
+                    className="flex cursor-pointer items-center gap-3 rounded-lg bg-muted/60 p-2.5 text-sm"
+                    key={operation.id}
+                  >
+                    <input
+                      checked={operation.enabled}
+                      className="size-4 accent-primary"
+                      onChange={() => toggleOperation(operation.id)}
+                      type="checkbox"
+                    />
+                    <span>
+                      {operation.label}
+                      {operation.type === "trim" &&
+                      operation.previousDurationMinutes &&
+                      operation.durationMinutes
+                        ? ` · ${formatDuration(operation.previousDurationMinutes)} → ${formatDuration(operation.durationMinutes)}`
+                        : ""}
+                    </span>
+                  </label>
+                ))}
               </div>
             ) : null}
 
@@ -543,8 +558,10 @@ function ReplanSheet({
             className="h-12 w-full"
             disabled={
               pending ||
-              (strategy === "recommended" &&
-                !(preview?.operations.some((operation) => operation.enabled)))
+              ((strategy === "recommended" || strategy === "recalculate") &&
+                preview?.operations &&
+                preview.operations.length > 0 &&
+                !(preview.operations.some((operation) => operation.enabled)))
             }
             onClick={applyChanges}
             size="lg"
@@ -623,19 +640,10 @@ export function TravelMode({ trip }: { trip: TripDto }) {
 
   if (!currentPoint || !currentDay) {
     return (
-      <div className="grid min-h-screen place-items-center px-5 text-center">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            No encontramos el punto actual
-          </h1>
-          <Button
-            className="mt-4"
-            onClick={() => router.push(`/app/trips/${trip.id}/itinerary`)}
-          >
-            Volver al itinerario
-          </Button>
-        </div>
-      </div>
+      <StartTravelSheet
+        trip={trip}
+        warning="No encontramos tu punto actual en el itinerario (puede deberse a una reorganización o cambios recientes). Seleccioná desde dónde querés continuar."
+      />
     );
   }
 

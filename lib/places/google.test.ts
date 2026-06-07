@@ -6,7 +6,7 @@ import {
   resolveDestination,
   searchCities,
   searchPlaces,
-} from "./google.ts";
+} from "./google";
 
 /**
  * With the mock fallbacks removed, every entry point must fail loudly when
