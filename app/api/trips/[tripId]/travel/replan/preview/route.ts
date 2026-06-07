@@ -2,7 +2,7 @@ import { getTrip } from "@/lib/trips/data";
 
 type PreviewRequest = {
   scenario?: "closed" | "overstay";
-  strategy?: "trim" | "recalculate" | "recommended";
+  strategy?: "trim" | "recalculate" | "recommended" | "solver";
 };
 
 export async function POST(
@@ -15,8 +15,18 @@ export async function POST(
   const strategy = body.strategy ?? "recommended";
   const trip = await getTrip(tripId);
 
-  if (!["trim", "recalculate", "recommended"].includes(strategy)) {
+  if (!["trim", "recalculate", "recommended", "solver"].includes(strategy)) {
     return Response.json({ error: "Unsupported strategy" }, { status: 400 });
+  }
+
+  if (strategy === "solver") {
+    return Response.json({
+      explanation:
+        "Se reoptimiza la ruta completa para los días restantes usando el solver. Los lugares ya visitados se conservan.",
+      operations: [],
+      scenario,
+      strategy,
+    });
   }
 
   if (!trip || !trip.isOwner) {

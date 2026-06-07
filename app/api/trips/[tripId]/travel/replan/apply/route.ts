@@ -1,9 +1,10 @@
 import type { Json } from "@/lib/supabase/database.types";
+import { replanItinerary } from "@/lib/itinerary/replan";
 import { createClient } from "@/utils/supabase/server";
 
 type ReplanRequest = {
   operations?: Json;
-  strategy?: "trim" | "recalculate" | "recommended";
+  strategy?: "trim" | "recalculate" | "recommended" | "solver";
 };
 
 export async function POST(
@@ -15,6 +16,16 @@ export async function POST(
 
   if (!body.strategy) {
     return Response.json({ error: "strategy is required" }, { status: 400 });
+  }
+
+  if (body.strategy === "solver") {
+    try {
+      const result = await replanItinerary(tripId);
+      return Response.json({ tripId, solverScore: result.score });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Solver replan failed";
+      return Response.json({ error: message }, { status: 400 });
+    }
   }
 
   const supabase = await createClient();

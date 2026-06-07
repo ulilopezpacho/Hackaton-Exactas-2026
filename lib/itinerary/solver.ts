@@ -134,10 +134,12 @@ function heldKarpOrder(
   const dp: number[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(Infinity));
   const parent: (number[] | null)[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(null));
 
+  const dayStart = day.startTime ?? config.dayStartTime;
+
   for (let v = 0; v < n; v++) {
-    const w = findOpenWindow(places[v], day.dayOfWeek, config.dayStartTime);
+    const w = findOpenWindow(places[v], day.dayOfWeek, dayStart);
     if (!w) continue;
-    const start = Math.max(config.dayStartTime, w.opensAt);
+    const start = Math.max(dayStart, w.opensAt);
     const end = start + places[v].durationMinutes;
     if (end > w.closesAt || end > config.dayEndTime) continue;
     dp[1 << v][v] = end;
@@ -482,8 +484,9 @@ function scheduleDayInOrder(
   mealPlaceIdsUsed: string[];
 } | null {
   const items: ScheduledItem[] = [];
-  let currentTime = config.dayStartTime;
-  let lastMealTime = config.dayStartTime;
+  const dayStart = day.startTime ?? config.dayStartTime;
+  let currentTime = dayStart;
+  let lastMealTime = dayStart;
   let lastPlaceId: string | null = null;
   let totalTravel = 0;
   const mealIdsUsed: string[] = [];

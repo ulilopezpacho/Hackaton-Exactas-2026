@@ -23,7 +23,7 @@ const DEFAULT_CONFIG: SolverConfig = {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnySupabase = any;
 
-interface PlaceRow {
+export interface PlaceRow {
   id: string;
   name: string;
   description: string | null;
@@ -222,18 +222,18 @@ export function buildDays(startsOn: string, endsOn: string): SolverDay[] {
   return days;
 }
 
-function timeToMinutes(time: string): number {
+export function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + (m || 0);
 }
 
-function minutesToTime(minutes: number): string {
+export function minutesToTime(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-function haversineKm(
+export function haversineKm(
   lat1: number,
   lon1: number,
   lat2: number,
@@ -250,7 +250,7 @@ function haversineKm(
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function extractCoords(
+export function extractCoords(
   location: unknown
 ): { lat: number; lng: number } | null {
   if (!location) return null;
@@ -267,7 +267,7 @@ function extractCoords(
   return null;
 }
 
-function buildTravelMatrix(places: PlaceRow[]): TravelMatrix {
+export function buildTravelMatrix(places: PlaceRow[]): TravelMatrix {
   const matrix: TravelMatrix = {};
   const coords = new Map<string, { lat: number; lng: number }>();
 

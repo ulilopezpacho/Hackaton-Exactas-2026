@@ -15,6 +15,7 @@ export interface SolverPlace {
 export interface SolverDay {
   date: string; // ISO date string e.g. "2026-06-10"
   dayOfWeek: number; // 0-6
+  startTime?: number; // overrides config.dayStartTime for this day (minutes from midnight)
 }
 
 export interface SolverConfig {

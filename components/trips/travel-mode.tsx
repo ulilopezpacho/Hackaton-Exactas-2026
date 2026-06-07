@@ -9,6 +9,7 @@ import {
   LockIcon,
   MapPinIcon,
   RefreshCwIcon,
+  RouteIcon,
   ScissorsIcon,
   SparklesIcon,
 } from "lucide-react";
@@ -34,7 +35,7 @@ import type {
 import { cn } from "@/lib/utils";
 
 type Scenario = "closed" | "overstay";
-type Strategy = "recalculate" | "recommended" | "trim";
+type Strategy = "recalculate" | "recommended" | "solver" | "trim";
 
 type RecommendedOperation = {
   durationMinutes?: number;
@@ -531,6 +532,23 @@ function ReplanSheet({
                     </span>
                   </label>
                 ))}
+              </div>
+            ) : null}
+
+            <ReplanOption
+              active={strategy === "solver"}
+              description="Recalculá el orden óptimo de los puntos restantes."
+              icon={RouteIcon}
+              onClick={() => setStrategy("solver")}
+              title="Reoptimizar ruta"
+            />
+            {strategy === "solver" ? (
+              <div className="grid gap-2 rounded-xl border bg-card p-3">
+                <p className="text-sm text-muted-foreground">
+                  {preview?.strategy === "solver"
+                    ? preview.explanation
+                    : "Preparando reoptimización…"}
+                </p>
               </div>
             ) : null}
           </div>
