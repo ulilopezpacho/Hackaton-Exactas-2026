@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { parseTripDates } from "@/lib/trips/wizard";
 import { createClient } from "@/utils/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 
 type WizardPlacePayload = {
   address?: string | null;
@@ -24,6 +25,9 @@ type WizardDraftPayload = {
   title: string;
   tripId: string;
 };
+
+type PlaceInsert = Database["public"]["Tables"]["places"]["Insert"];
+type ItineraryItemInsert = Database["public"]["Tables"]["itinerary_items"]["Insert"];
 
 export async function createTripDraft(formData: FormData) {
   const title = String(formData.get("title") ?? "").trim();
@@ -71,7 +75,7 @@ export async function createTripDraft(formData: FormData) {
 export async function saveTripGenerationContext(formData: FormData) {
   const payloadValue = String(formData.get("payload") ?? "");
   const payload = parseWizardDraftPayload(payloadValue);
-  parseTripDates(payload.startsOn, payload.endsOn);
+  const range = parseTripDates(payload.startsOn, payload.endsOn);
 
   const supabase = await createClient();
   const {
@@ -94,18 +98,18 @@ export async function saveTripGenerationContext(formData: FormData) {
   }
 
   const customizationPrompt = buildCustomizationPrompt(payload);
-  const { error: promptError } = await supabase
+  await supabase
     .from("trips")
-    .update({
+    .update({ 
       route_customization_prompt: customizationPrompt,
-      status: "generating",
+      status: "generating"
     })
     .eq("id", payload.tripId)
     .eq("owner_id", user.id);
 
-  if (promptError) {
-    redirect(`/app/trips/new/places?tripId=${payload.tripId}&error=prompt`);
-  }
+  // We still need to upsert places and create a tentative itinerary 
+  // so the Wizard can fetch the place IDs and run the solver.
+  const places = await upsertPlaces(payload.places, user.id);
 
   const { data: existingItineraries } = await supabase
     .from("itineraries")
@@ -118,6 +122,47 @@ export async function saveTripGenerationContext(formData: FormData) {
   if (existingIds.length > 0) {
     await supabase.from("itinerary_items").delete().in("itinerary_id", existingIds);
     await supabase.from("itineraries").delete().in("id", existingIds);
+  }
+
+  const dayInserts = Array.from({ length: range.dayCount }, (_, index) => ({
+    day_number: index + 1,
+    itinerary_type: "wizard_tentative",
+    status: "draft" as const,
+    title: `Día ${index + 1}`,
+    trip_id: payload.tripId,
+  }));
+  
+  const { data: itineraries, error: itineraryError } = await supabase
+    .from("itineraries")
+    .insert(dayInserts)
+    .select("id, day_number");
+
+  if (itineraryError || !itineraries) {
+    redirect(`/app/trips/new/places?tripId=${payload.tripId}&error=itinerary`);
+  }
+
+  // For simplicity and to satisfy the Wizard's need for place IDs, 
+  // we just put all places in day 1 of the tentative itinerary.
+  const itemInserts: ItineraryItemInsert[] = payload.places.map((place, index) => ({
+    description: null,
+    ends_at: `${payload.startsOn}T10:30:00Z`,
+    itinerary_id: itineraries[0].id,
+    item_type: "place",
+    locked: false,
+    place_id: places[index]?.id ?? null,
+    position: index,
+    starts_at: `${payload.startsOn}T09:00:00Z`,
+    title: place.name,
+  }));
+
+  if (itemInserts.length > 0) {
+    const { error: itemsError } = await supabase
+      .from("itinerary_items")
+      .insert(itemInserts);
+
+    if (itemsError) {
+      redirect(`/app/trips/new/places?tripId=${payload.tripId}&error=items`);
+    }
   }
 
   redirect(`/app/trips/new/generating?tripId=${payload.tripId}`);
@@ -188,6 +233,59 @@ function parseWizardDraftPayload(value: string): WizardDraftPayload {
     title: parsed.title,
     tripId: parsed.tripId,
   };
+}
+
+async function upsertPlaces(places: WizardPlacePayload[], userId: string) {
+  const supabase = await createClient();
+  const persisted = [];
+
+  for (const place of places) {
+    const existing =
+      place.placeId &&
+      (await supabase
+        .from("places")
+        .select("id")
+        .eq("owner_id", userId)
+        .eq("source", "google")
+        .eq("external_id", place.placeId)
+        .maybeSingle());
+
+    if (existing && existing.data) {
+      persisted.push(existing.data);
+      continue;
+    }
+
+    const insert: PlaceInsert = {
+      address: place.address ?? null,
+      category: place.category ?? null,
+      default_duration_minutes: place.durationMinutes,
+      external_id: place.placeId ?? null,
+      location:
+        place.latitude !== null &&
+        place.latitude !== undefined &&
+        place.longitude !== null &&
+        place.longitude !== undefined
+          ? `SRID=4326;POINT(${place.longitude} ${place.latitude})`
+          : null,
+      name: place.name,
+      owner_id: userId,
+      source: place.placeId ? "google" : "manual",
+      status: "active",
+    };
+    const { data, error } = await supabase
+      .from("places")
+      .insert(insert)
+      .select("id")
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    persisted.push(data);
+  }
+
+  return persisted;
 }
 
 function buildCustomizationPrompt(payload: WizardDraftPayload) {
