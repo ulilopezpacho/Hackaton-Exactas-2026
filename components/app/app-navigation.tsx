@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronLeftIcon } from "lucide-react";
 import { usePathname } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
 import { ProfileMenu } from "@/components/app/profile-menu";
 
 export function AppNavigation({
@@ -18,20 +16,7 @@ export function AppNavigation({
   const isHome = pathname === "/app";
 
   if (!isHome) {
-    return (
-      <div className="mx-auto w-full max-w-6xl px-5 pt-5">
-        <Button
-          aria-label="Volver al inicio"
-          className="rounded-full"
-          nativeButton={false}
-          render={<Link href="/app" />}
-          size="icon"
-          variant="outline"
-        >
-          <ChevronLeftIcon />
-        </Button>
-      </div>
-    );
+    return null;
   }
 
   return (

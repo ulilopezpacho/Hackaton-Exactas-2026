@@ -1,3 +1,4 @@
+import { BackButton } from "@/components/app/back-button";
 import { PageShell } from "@/components/app/page-shell";
 
 import { TripDestinationForm } from "./trip-destination-form";
@@ -12,7 +13,11 @@ export default async function DestinationPage({
   const { error } = await searchParams;
 
   return (
-    <PageShell eyebrow="Nuevo viaje" title="Empecemos por lo básico">
+    <PageShell
+      actions={<BackButton />}
+      eyebrow="Nuevo viaje"
+      title="Empecemos por lo básico"
+    >
       <TripDestinationForm error={error} />
     </PageShell>
   );

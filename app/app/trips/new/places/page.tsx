@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { BackButton } from "@/components/app/back-button";
 import { PageShell } from "@/components/app/page-shell";
 import { createClient } from "@/utils/supabase/server";
 
@@ -28,7 +29,10 @@ export default async function PlacesPage({ searchParams }: PlacesPageProps) {
   }
 
   return (
-    <PageShell eyebrow="Wishlist" title="Creá tu lista de prioridades">
+    <PageShell
+      actions={<BackButton />}
+      title="Creá tu lista de prioridades"
+    >
       {error ? (
         <p className="rounded-xl border border-destructive/25 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           No pudimos guardar el contexto para generar el viaje. Probá de nuevo.

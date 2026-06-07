@@ -347,7 +347,7 @@ export function ItineraryExplorer({
   const router = useRouter();
 
   function goBack() {
-    router.replace(`/app/trips/${trip.id}`);
+    router.replace("/app/trips");
   }
 
   return (
@@ -372,7 +372,7 @@ export function ItineraryExplorer({
         ) : (
           <Button
             nativeButton={false}
-            render={<Link href={`/app/trips/${trip.id}`} />}
+            render={<Link href="/app/trips" />}
             variant="ghost"
           >
             Volver al viaje
@@ -394,7 +394,11 @@ export function ItineraryExplorer({
           </h1>
         </div>
         {!immersive ? (
-          <StartTravelButton isOwner={trip.isOwner} tripId={trip.id} />
+          <StartTravelButton
+            isOngoing={trip.travelStatus === "ongoing"}
+            isOwner={trip.isOwner}
+            tripId={trip.id}
+          />
         ) : null}
       </div>
 
@@ -467,6 +471,7 @@ export function ItineraryExplorer({
           <div className="mx-auto w-full max-w-6xl">
             <StartTravelButton
               className="w-full"
+              isOngoing={trip.travelStatus === "ongoing"}
               isOwner={trip.isOwner}
               tripId={trip.id}
             />

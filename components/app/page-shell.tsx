@@ -20,7 +20,7 @@ type PageShellProps = {
 
 export function PageShell({ actions, children, eyebrow, title }: PageShellProps) {
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 py-8">
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-5 py-5 md:gap-6 md:py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           {eyebrow ? (

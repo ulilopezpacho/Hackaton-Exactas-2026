@@ -270,7 +270,12 @@ export async function getTripsOverview(): Promise<TripsOverview> {
         country: trip.country || "Destino",
         dates: formatDateRange(trip.starts_on, trip.ends_on),
         days: `${tripDayCount} ${tripDayCount === 1 ? "día" : "días"}`,
-        href: `/app/trips/${trip.id}`,
+        href:
+          status === "draft"
+            ? `/app/trips/new/places?tripId=${trip.id}`
+            : status === "generating"
+              ? `/app/trips/new/generating?tripId=${trip.id}`
+              : `/app/trips/${trip.id}/itinerary`,
         id: trip.id,
         places: placesLabel(status, placeCount, tripDayCount),
         placeCount,

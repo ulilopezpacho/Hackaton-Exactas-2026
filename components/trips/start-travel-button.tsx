@@ -9,10 +9,12 @@ import { cn } from "@/lib/utils";
 export function StartTravelButton({
   className,
   isOwner,
+  isOngoing = false,
   tripId,
 }: {
   className?: string;
   isOwner: boolean;
+  isOngoing?: boolean;
   tripId: string;
 }) {
   const router = useRouter();
@@ -34,7 +36,7 @@ export function StartTravelButton({
       size="lg"
     >
       <PlayIcon data-icon="inline-start" />
-      Iniciar modo viaje
+      {isOngoing ? "Reanudar viaje" : "Iniciar modo viaje"}
     </Button>
   );
 }

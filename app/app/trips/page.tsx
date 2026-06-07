@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PlusIcon } from "lucide-react";
 
+import { BackButton } from "@/components/app/back-button";
 import { Button } from "@/components/ui/button";
 import { getTripsOverview } from "@/lib/trips/overview";
 
@@ -11,6 +12,7 @@ export default async function TripsPage() {
 
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-7 px-5 py-8 md:py-10">
+      <BackButton />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="mb-2 text-sm font-medium text-primary">Tu mapa personal</p>

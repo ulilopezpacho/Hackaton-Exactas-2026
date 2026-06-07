@@ -230,23 +230,34 @@ export function TripPlacesForm({
   }
 
   return (
-    <form action={saveTripGenerationContext} className="grid gap-6">
+    <form
+      action={saveTripGenerationContext}
+      className="grid gap-3 pb-24 md:gap-6 md:pb-28"
+    >
       <input name="payload" type="hidden" value={payload} />
 
       <Card className="border-primary/10">
-        <CardHeader>
+        <CardHeader className="gap-1 px-4 py-3 md:px-6 md:py-6">
           <Badge className="w-fit" variant="secondary">
             Prioridades del viaje
           </Badge>
-          <CardTitle className="max-w-2xl text-3xl">
+          <CardTitle className="max-w-2xl text-2xl md:text-3xl">
             ¿Qué querés ver en {trip.title}?
           </CardTitle>
-          <CardDescription className="max-w-2xl">
-            Contanos qué tipo de viaje querés. Si ya tenés lugares en mente,
-            podés sumarlos como referencias opcionales.
+          <CardDescription className="max-w-2xl text-sm">
+            Sumá lugares o preferencias opcionales para personalizar el viaje.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4">
+      </Card>
+
+      <Card className="border-primary/10">
+        <CardHeader className="gap-1 px-4 py-3 md:px-6 md:py-6">
+          <CardTitle className="text-lg md:text-xl">Agregar lugares opcionales</CardTitle>
+          <CardDescription className="text-sm">
+            Sumá referencias concretas que quieras priorizar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 px-4 pb-4 md:gap-4 md:px-6 md:pb-6">
           <div className="relative">
             <div className="flex h-13 items-center gap-3 rounded-[10px] border border-input bg-card px-4 focus-within:border-primary focus-within:ring-3 focus-within:ring-primary/20">
               <SearchIcon className="size-4 text-muted-foreground" />
@@ -307,24 +318,30 @@ export function TripPlacesForm({
               {message}
             </p>
           ) : null}
-
-          <div className="grid gap-2">
-            <label className="text-sm font-medium" htmlFor="trip-notes">
-              Personalizá el recorrido
-            </label>
-            <Textarea
-              className="min-h-24 resize-none rounded-2xl bg-background px-4 py-3 shadow-sm"
-              id="trip-notes"
-              maxLength={600}
-              onChange={(event) => setNotes(event.target.value)}
-              placeholder="Ej: queremos caminar poco, evitar museos largos, almorzar tarde y dejar tiempo libre para cafés."
-              value={notes}
-            />
-          </div>
         </CardContent>
       </Card>
 
-      <section className="grid gap-3">
+      <Card className="border-primary/10">
+        <CardHeader className="gap-1 px-4 py-3 md:px-6 md:py-6">
+          <CardTitle className="text-lg md:text-xl">Personalizá el recorrido</CardTitle>
+          <CardDescription className="text-sm">
+            Agregá preferencias generales sin necesidad de elegir lugares.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 md:px-6 md:pb-6">
+          <Textarea
+            aria-label="Personalizá el recorrido"
+            className="min-h-20 resize-none rounded-2xl bg-background px-4 py-3 shadow-sm md:min-h-24"
+            id="trip-notes"
+            maxLength={600}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Ej: queremos caminar poco, evitar museos largos, almorzar tarde y dejar tiempo libre para cafés."
+            value={notes}
+          />
+        </CardContent>
+      </Card>
+
+      <section className="grid gap-2 md:gap-3">
         <div className="flex items-center justify-between gap-3">
           <Badge variant="secondary">Lista de prioridades</Badge>
           <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
@@ -334,7 +351,7 @@ export function TripPlacesForm({
         </div>
 
         {places.length === 0 ? (
-          <div className="rounded-xl border border-dashed bg-card px-6 py-10 text-center text-sm text-muted-foreground">
+          <div className="rounded-xl border border-dashed bg-card px-4 py-4 text-center text-xs text-muted-foreground md:px-6 md:py-10 md:text-sm">
             No agregaste lugares, y está bien. El generador va a descubrirlos
             usando tu prompt y tus preferencias.
           </div>
@@ -391,7 +408,7 @@ export function TripPlacesForm({
         )}
       </section>
 
-      <div className="sticky bottom-0 -mx-5 flex items-center gap-4 border-t bg-background/85 px-5 py-4 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-4 border-t bg-background/95 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur">
         <div className="min-w-24">
           <p className="text-xl font-semibold">
             {places.length} {places.length === 1 ? "lugar opcional" : "lugares opcionales"}

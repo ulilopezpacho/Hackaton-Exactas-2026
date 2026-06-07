@@ -662,12 +662,13 @@ export function TravelMode({ trip }: { trip: TripDto }) {
       className="relative min-h-screen overflow-hidden bg-background pb-28"
       data-travel-mode-view
     >
-      <div className="relative h-72">
+      <div className="relative h-[26rem] md:h-[28rem]">
         <GoogleTripMap
-          heightClassName="h-72"
+          heightClassName="h-[26rem] md:h-[28rem]"
           items={currentDay.items}
           onSelect={noSelect}
           selectedItemId={currentPoint.item.id}
+          selectedZoom={13}
           showAllControl={false}
         />
         <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-black/5 via-transparent to-background" />
@@ -693,9 +694,9 @@ export function TravelMode({ trip }: { trip: TripDto }) {
         </div>
       </div>
 
-      <main className="relative z-10 mx-auto -mt-12 grid w-full max-w-2xl gap-5 px-4">
-        <section className="rounded-[1.75rem] border bg-card p-4 shadow-lg">
-          <div className="mb-3 flex items-center justify-between gap-3">
+      <main className="relative z-10 mx-auto -mt-10 grid w-full max-w-2xl gap-4 px-4 md:-mt-12 md:gap-5">
+        <section className="rounded-[1.5rem] border bg-card p-3 shadow-lg md:rounded-[1.75rem] md:p-4">
+          <div className="mb-2 flex items-center justify-between gap-3 md:mb-3">
             <p className="flex items-center gap-2 text-xs font-semibold text-primary">
               <span className="size-2 rounded-full bg-primary motion-safe:animate-pulse" />
               Estás acá
@@ -704,21 +705,21 @@ export function TravelMode({ trip }: { trip: TripDto }) {
               Punto {currentIndex + 1} de {allPoints.length}
             </span>
           </div>
-          <div className="flex gap-4">
+          <div className="flex gap-3 md:gap-4">
             <PlaceArt
-              className="size-24 shrink-0 rounded-2xl"
+              className="size-16 shrink-0 rounded-xl md:size-24 md:rounded-2xl"
               seed={currentPoint.item.place?.id ?? currentPoint.item.id}
             />
             <div className="min-w-0 flex-1">
-              <h1 className="text-2xl font-semibold leading-tight">
+              <h1 className="text-lg font-semibold leading-tight md:text-2xl">
                 {itemName(currentPoint.item)}
               </h1>
-              <p className="mt-1 text-sm text-muted-foreground">
+              <p className="mt-1 line-clamp-2 text-xs text-muted-foreground md:text-sm">
                 {currentPoint.item.description ??
                   currentPoint.item.place?.description ??
                   "Seguí este punto de tu itinerario."}
               </p>
-              <span className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs font-semibold text-primary">
+              <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary/10 px-2 py-1 text-[0.6875rem] font-semibold text-primary md:mt-3 md:px-2.5 md:py-1.5 md:text-xs">
                 <Clock3Icon className="size-3.5" />
                 Hasta las {currentPoint.item.endTime} ·{" "}
                 {formatDuration(currentPoint.item.durationMinutes)}

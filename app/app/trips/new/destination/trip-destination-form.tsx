@@ -197,20 +197,20 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
   }
 
   return (
-    <form action={createTripDraft} className="grid gap-6">
+    <form action={createTripDraft} className="grid gap-4 md:gap-6">
       <input name="title" type="hidden" value={title} />
       <input name="startsOn" type="hidden" value={startsOn} />
       <input name="endsOn" type="hidden" value={endsOn} />
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_1.05fr]">
-        <Card className="relative min-h-80 overflow-hidden border-primary/20 bg-primary text-primary-foreground">
+      <div className="grid gap-3 md:gap-5 lg:grid-cols-[1fr_1.05fr]">
+        <Card className="relative min-h-52 overflow-hidden border-primary/20 bg-primary text-primary-foreground md:min-h-80">
           <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(118deg,transparent_0_28%,rgba(255,255,255,.2)_28%_29%,transparent_29%_58%,rgba(255,255,255,.15)_58%_59%,transparent_59%),linear-gradient(28deg,transparent_0_45%,rgba(255,255,255,.14)_45%_46%,transparent_46%)]" />
           <CardHeader className="relative">
             <Badge className="w-fit bg-primary-foreground/12 text-primary-foreground" variant="secondary">
               <SparklesIcon data-icon="inline-start" />
               Rumbo
             </Badge>
-            <CardTitle className="mt-8 max-w-sm text-4xl leading-tight">
+            <CardTitle className="mt-2 max-w-sm text-3xl leading-tight md:mt-8 md:text-4xl">
               Decinos dónde vas. Armamos el camino.
             </CardTitle>
             <CardDescription className="max-w-sm text-base text-primary-foreground/70">
@@ -219,7 +219,7 @@ export function TripDestinationForm({ error }: TripDestinationFormProps) {
           </CardHeader>
         </Card>
 
-        <div className="grid gap-5">
+        <div className="grid gap-3 md:gap-5">
           <Card>
             <CardHeader>
               <CardTitle className="inline-flex items-center gap-2">

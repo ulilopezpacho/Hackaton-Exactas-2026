@@ -11,6 +11,7 @@ type GoogleTripMapProps = {
   items: ItineraryItemDto[];
   onSelect: (itemId: string) => void;
   selectedItemId: string | null;
+  selectedZoom?: number;
   showAllControl?: boolean;
 };
 
@@ -104,11 +105,13 @@ export function GoogleTripMap({
   items,
   onSelect,
   selectedItemId,
+  selectedZoom,
   showAllControl = true,
 }: GoogleTripMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const selectedItemIdRef = useRef(selectedItemId);
+  const selectedZoomRef = useRef(selectedZoom);
   const boundsRef = useRef<google.maps.LatLngBounds | null>(null);
   const routeRef = useRef<google.maps.Polyline | null>(null);
   const markersRef = useRef<
@@ -132,6 +135,10 @@ export function GoogleTripMap({
   useEffect(() => {
     selectedItemIdRef.current = selectedItemId;
   }, [selectedItemId]);
+
+  useEffect(() => {
+    selectedZoomRef.current = selectedZoom;
+  }, [selectedZoom]);
 
   function showAllMarkers() {
     if (mapRef.current && boundsRef.current) {
@@ -243,6 +250,16 @@ export function GoogleTripMap({
       });
       boundsRef.current = bounds;
       map.fitBounds(bounds, 48);
+
+      const selectedIndex = mappedItems.findIndex(
+        (item) => item.id === selectedItemIdRef.current,
+      );
+      if (selectedZoomRef.current && selectedIndex >= 0) {
+        google.maps.event.addListenerOnce(map, "idle", () => {
+          map.setCenter(displayPositions[selectedIndex]);
+          map.setZoom(selectedZoomRef.current!);
+        });
+      }
     }
 
     void initializeMap();
@@ -290,8 +307,11 @@ export function GoogleTripMap({
     );
     if (selectedIndex >= 0) {
       mapRef.current?.panTo(displayPositions[selectedIndex]);
+      if (selectedZoom) {
+        mapRef.current?.setZoom(selectedZoom);
+      }
     }
-  }, [displayPositions, mappedItems, selectedItemId]);
+  }, [displayPositions, mappedItems, selectedItemId, selectedZoom]);
 
   if (!apiKey) {
     return (
