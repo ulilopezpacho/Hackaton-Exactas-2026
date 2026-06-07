@@ -18,7 +18,7 @@ import {
   useState,
 } from "react";
 
-import { GoogleTripMap } from "@/components/trips/google-trip-map";
+import { TripMap } from "@/components/trips/trip-map";
 import { PlaceArt } from "@/components/trips/place-art";
 import { SaveTripButton } from "@/components/trips/save-trip-button";
 import { ShareTripButton } from "@/components/trips/share-trip-button";
@@ -289,7 +289,7 @@ function MapPanel({ day }: { day: ItineraryDayDto }) {
 
   return (
     <div className="grid min-w-0 gap-4">
-      <GoogleTripMap
+      <TripMap
         items={mappedItems}
         onSelect={selectItem}
         selectedItemId={selectedItemId}
@@ -337,7 +337,7 @@ type ItineraryView = "list" | "map";
 
 export function ItineraryExplorer({
   immersive = false,
-  selectedDay,
+  selectedDay: initialSelectedDay,
   trip,
 }: {
   immersive?: boolean;
@@ -345,6 +345,9 @@ export function ItineraryExplorer({
   trip: TripDto;
 }) {
   const router = useRouter();
+  const [selectedDayNumber, setSelectedDayNumber] = useState(
+    initialSelectedDay.dayNumber,
+  );
   const [activeView, setActiveView] = useState<ItineraryView>(() => {
     if (typeof window === "undefined") {
       return "list";
@@ -354,9 +357,35 @@ export function ItineraryExplorer({
       ? "map"
       : "list";
   });
+  const selectedDay =
+    trip.days.find((day) => day.dayNumber === selectedDayNumber) ??
+    initialSelectedDay;
+
+  useEffect(() => {
+    function syncDayFromUrl() {
+      const dayNumber = Number(
+        new URL(window.location.href).pathname.split("/").at(-1),
+      );
+
+      if (trip.days.some((day) => day.dayNumber === dayNumber)) {
+        setSelectedDayNumber(dayNumber);
+      }
+    }
+
+    window.addEventListener("popstate", syncDayFromUrl);
+
+    return () => window.removeEventListener("popstate", syncDayFromUrl);
+  }, [trip.days]);
 
   function goBack() {
     router.replace("/app/trips");
+  }
+
+  function changeDay(dayNumber: number) {
+    const url = new URL(window.location.href);
+    url.pathname = `/app/trips/${trip.id}/itinerary/${dayNumber}`;
+    window.history.pushState(null, "", url);
+    setSelectedDayNumber(dayNumber);
   }
 
   function changeView(value: string) {
@@ -445,12 +474,7 @@ export function ItineraryExplorer({
             <Button
               className="h-auto shrink-0 flex-col items-start rounded-2xl px-4 py-2"
               key={day.id}
-              nativeButton={false}
-              render={
-                <Link
-                  href={`/app/trips/${trip.id}/itinerary/${day.dayNumber}?view=${activeView}`}
-                />
-              }
+              onClick={() => changeDay(day.dayNumber)}
               variant={
                 day.dayNumber === selectedDay.dayNumber ? "default" : "outline"
               }
@@ -472,7 +496,7 @@ export function ItineraryExplorer({
         </TabsContent>
         <TabsContent value="map">
           <div className="mt-2">
-            <MapPanel day={selectedDay} />
+            <MapPanel day={selectedDay} key={selectedDay.id} />
           </div>
         </TabsContent>
       </Tabs>

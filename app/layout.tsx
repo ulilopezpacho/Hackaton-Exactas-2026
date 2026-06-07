@@ -1,5 +1,6 @@
 import "@fontsource-variable/newsreader";
 import "@fontsource-variable/onest";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 import type { Metadata } from "next";
 import "./globals.css";

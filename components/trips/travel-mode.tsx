@@ -15,7 +15,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { GoogleTripMap } from "@/components/trips/google-trip-map";
+import { TripMap } from "@/components/trips/trip-map";
 import { PlaceArt } from "@/components/trips/place-art";
 import { Button } from "@/components/ui/button";
 import {
@@ -140,7 +140,7 @@ function StartTravelSheet({ trip }: { trip: TripDto }) {
   return (
     <div className="relative min-h-[calc(100vh-3.5rem)] overflow-hidden">
       {selectedDay ? (
-        <GoogleTripMap
+        <TripMap
           heightClassName="h-[calc(100vh-3.5rem)]"
           items={selectedDay.items}
           onSelect={setItemId}
@@ -650,7 +650,7 @@ export function TravelMode({ trip }: { trip: TripDto }) {
       data-travel-mode-view
     >
       <div className="relative h-[26rem] md:h-[28rem]">
-        <GoogleTripMap
+        <TripMap
           heightClassName="h-[26rem] md:h-[28rem]"
           items={currentDay.items}
           onSelect={noSelect}
