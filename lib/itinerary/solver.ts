@@ -15,7 +15,7 @@ export function solve(input: SolverInput): SolverResult {
   const numPlaces = places.length;
   const numDays = days.length;
 
-  console.log(`[solve] Starting Greedy Constructive. Places: ${numPlaces}, Days: ${numDays}`);
+  console.log(`[solve] Starting. Places: ${numPlaces}, Days: ${numDays}`);
 
   if (numPlaces === 0) {
     return {
@@ -25,26 +25,22 @@ export function solve(input: SolverInput): SolverResult {
     };
   }
 
+  // --- Phase 1: Greedy Construction ---
   const dayPlaceLists: SolverPlace[][] = days.map(() => []);
   const skipped: string[] = [];
   const globalUsedMealIds: string[] = [];
 
-  // Sort places by score descending (they usually are, but let's be safe)
   const sortedPlaces = [...places].sort((a, b) => (b.score || 0) - (a.score || 0));
 
   for (const place of sortedPlaces) {
     let bestDay = -1;
     let bestDayScore = -Infinity;
-    let bestDayResult: { totalTravel: number; mealPlaceIdsUsed: string[] } | null = null;
 
     for (let d = 0; d < numDays; d++) {
-      // 1. Basic opening window prune
       if (!hasOpenWindow(place, days[d].dayOfWeek)) continue;
 
-      // 2. Try adding to this day
       dayPlaceLists[d].push(place);
-      
-      // We simulate the day's schedule
+
       const dayResult = findBestDaySchedule(
         dayPlaceLists[d],
         d,
@@ -54,32 +50,39 @@ export function solve(input: SolverInput): SolverResult {
         config,
         globalUsedMealIds
       );
-      
-      dayPlaceLists[d].pop(); // Backtrack
+
+      dayPlaceLists[d].pop();
 
       if (dayResult) {
-        // Heuristic: favor higher place scores, lower travel time, and balanced distribution
         const travelIncrease = dayResult.totalTravel;
-        const balancePenalty = dayPlaceLists[d].length * 15; // Penalize crowded days
-        
+        const balancePenalty = dayPlaceLists[d].length * 15;
         const score = (place.score || 50) - (travelIncrease / 10) - balancePenalty;
 
         if (score > bestDayScore) {
           bestDayScore = score;
           bestDay = d;
-          bestDayResult = dayResult;
         }
       }
     }
 
-    if (bestDay !== -1 && bestDayResult) {
+    if (bestDay !== -1) {
       dayPlaceLists[bestDay].push(place);
     } else {
       skipped.push(place.id);
     }
   }
 
-  // Final assembly
+  console.log(`[solve] Greedy: assigned ${numPlaces - skipped.length}/${numPlaces}`);
+
+  // --- Phase 2: Inter-day Local Search ---
+  interDayLocalSearch(dayPlaceLists, skipped, input);
+
+  console.log(`[solve] Local search: assigned ${numPlaces - skipped.length}/${numPlaces}`);
+
+  // --- Phase 3: Held-Karp DP per day (inside findBestDaySchedule) ---
+  // (applied automatically when findBestDaySchedule calls heldKarpOrder)
+
+  // --- Phase 4: Final Scheduling ---
   const resultDays: DaySchedule[] = [];
   let totalTravel = 0;
   const finalUsedMealIds: string[] = [];
@@ -94,7 +97,7 @@ export function solve(input: SolverInput): SolverResult {
       config,
       finalUsedMealIds
     );
-    
+
     if (dayResult) {
       resultDays.push(dayResult.schedule);
       totalTravel += dayResult.totalTravel;
@@ -104,7 +107,6 @@ export function solve(input: SolverInput): SolverResult {
     }
   }
 
-  // Calculate final score
   let finalScore = (numPlaces - skipped.length) * 1000;
   for (const dayList of dayPlaceLists) {
     for (const p of dayList) finalScore += p.score || 50;
@@ -114,6 +116,314 @@ export function solve(input: SolverInput): SolverResult {
   console.log(`[solve] Finished. Assigned: ${numPlaces - skipped.length}/${numPlaces}. Score: ${finalScore}`);
 
   return { days: resultDays, score: finalScore, unplacedPlaces: skipped };
+}
+
+// --- Held-Karp DP for optimal intra-day ordering ---
+
+function heldKarpOrder(
+  places: SolverPlace[],
+  day: SolverDay,
+  travelMatrix: TravelMatrix,
+  config: SolverConfig
+): SolverPlace[] | null {
+  const n = places.length;
+  if (n <= 1) return places.length === 0 ? null : [...places];
+  if (n > 20) return nearestNeighborOrder(places, travelMatrix);
+
+  const FULL = (1 << n) - 1;
+  const dp: number[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(Infinity));
+  const parent: (number[] | null)[][] = Array.from({ length: 1 << n }, () => new Array(n).fill(null));
+
+  for (let v = 0; v < n; v++) {
+    const w = findOpenWindow(places[v], day.dayOfWeek, config.dayStartTime);
+    if (!w) continue;
+    const start = Math.max(config.dayStartTime, w.opensAt);
+    const end = start + places[v].durationMinutes;
+    if (end > w.closesAt || end > config.dayEndTime) continue;
+    dp[1 << v][v] = end;
+  }
+
+  for (let S = 1; S <= FULL; S++) {
+    for (let v = 0; v < n; v++) {
+      if (!(S & (1 << v))) continue;
+      if (dp[S][v] === Infinity) continue;
+
+      for (let w = 0; w < n; w++) {
+        if (S & (1 << w)) continue;
+        const travel = getTravelTime(travelMatrix, places[v].id, places[w].id);
+        const arrival = dp[S][v] + travel;
+        const window = findOpenWindow(places[w], day.dayOfWeek, arrival);
+        if (!window) continue;
+        const start = Math.max(arrival, window.opensAt);
+        const end = start + places[w].durationMinutes;
+        if (end > window.closesAt || end > config.dayEndTime) continue;
+        const nextS = S | (1 << w);
+        if (end < dp[nextS][w]) {
+          dp[nextS][w] = end;
+          parent[nextS][w] = [S, v];
+        }
+      }
+    }
+  }
+
+  let bestEnd = Infinity;
+  let bestLast = -1;
+  for (let v = 0; v < n; v++) {
+    if (dp[FULL][v] < bestEnd) {
+      bestEnd = dp[FULL][v];
+      bestLast = v;
+    }
+  }
+
+  if (bestLast === -1) {
+    return nearestNeighborOrder(places, travelMatrix);
+  }
+
+  const order: number[] = [];
+  let S = FULL;
+  let v = bestLast;
+  while (true) {
+    order.push(v);
+    const p = parent[S][v];
+    if (!p) break;
+    S = p[0];
+    v = p[1];
+  }
+  order.reverse();
+
+  return order.map((i) => places[i]);
+}
+
+// --- Extracted nearest-neighbor ordering ---
+
+function nearestNeighborOrder(
+  places: SolverPlace[],
+  travelMatrix: TravelMatrix
+): SolverPlace[] {
+  if (places.length <= 1) return [...places];
+
+  const unvisited = [...places];
+  const ordered: SolverPlace[] = [];
+  let currentId: string | null = null;
+
+  while (unvisited.length > 0) {
+    let bestNextIndex = -1;
+    let minTravel = Infinity;
+
+    for (let i = 0; i < unvisited.length; i++) {
+      const travel = getTravelTime(travelMatrix, currentId, unvisited[i].id);
+      if (travel < minTravel) {
+        minTravel = travel;
+        bestNextIndex = i;
+      }
+    }
+
+    const nextPlace = unvisited.splice(bestNextIndex, 1)[0];
+    ordered.push(nextPlace);
+    currentId = nextPlace.id;
+  }
+
+  return ordered;
+}
+
+// --- Inter-day Local Search ---
+
+function canScheduleDay(
+  places: SolverPlace[],
+  dayIndex: number,
+  day: SolverDay,
+  mealPlaces: SolverPlace[],
+  travelMatrix: TravelMatrix,
+  config: SolverConfig
+): boolean {
+  return findBestDaySchedule(places, dayIndex, day, mealPlaces, travelMatrix, config, []) !== null;
+}
+
+function interDayLocalSearch(
+  dayPlaceLists: SolverPlace[][],
+  skipped: string[],
+  input: SolverInput
+): void {
+  const { places, mealPlaces, days, travelMatrix, config } = input;
+  const numDays = days.length;
+
+  let currentScore = computeSolutionScore(dayPlaceLists, travelMatrix);
+  let improved = true;
+  let iteration = 0;
+  const MAX_ITERATIONS = 50;
+
+  while (improved && iteration < MAX_ITERATIONS) {
+    improved = false;
+    iteration++;
+
+    // --- Relocate moves ---
+    for (let d1 = 0; d1 < numDays && !improved; d1++) {
+      for (let pi = 0; pi < dayPlaceLists[d1].length && !improved; pi++) {
+        const place = dayPlaceLists[d1][pi];
+
+        for (let d2 = 0; d2 < numDays; d2++) {
+          if (d2 === d1) continue;
+          if (!hasOpenWindow(place, days[d2].dayOfWeek)) continue;
+
+          const candidateD2 = [...dayPlaceLists[d2], place];
+          if (!canScheduleDay(candidateD2, d2, days[d2], mealPlaces, travelMatrix, config)) continue;
+
+          const candidateD1 = dayPlaceLists[d1].filter((_, i) => i !== pi);
+
+          const saved = [dayPlaceLists[d1], dayPlaceLists[d2]];
+          dayPlaceLists[d1] = candidateD1;
+          dayPlaceLists[d2] = candidateD2;
+
+          const candidateScore = computeSolutionScore(dayPlaceLists, travelMatrix);
+
+          if (candidateScore > currentScore) {
+            currentScore = candidateScore;
+            improved = true;
+          } else {
+            dayPlaceLists[d1] = saved[0];
+            dayPlaceLists[d2] = saved[1];
+          }
+          if (improved) break;
+        }
+      }
+    }
+
+    if (improved) continue;
+
+    // --- Swap moves ---
+    for (let d1 = 0; d1 < numDays - 1 && !improved; d1++) {
+      for (let d2 = d1 + 1; d2 < numDays && !improved; d2++) {
+        for (let pi = 0; pi < dayPlaceLists[d1].length && !improved; pi++) {
+          for (let pj = 0; pj < dayPlaceLists[d2].length && !improved; pj++) {
+            const placeA = dayPlaceLists[d1][pi];
+            const placeB = dayPlaceLists[d2][pj];
+
+            if (!hasOpenWindow(placeA, days[d2].dayOfWeek)) continue;
+            if (!hasOpenWindow(placeB, days[d1].dayOfWeek)) continue;
+
+            const candidateD1 = [...dayPlaceLists[d1]];
+            const candidateD2 = [...dayPlaceLists[d2]];
+            candidateD1[pi] = placeB;
+            candidateD2[pj] = placeA;
+
+            if (!canScheduleDay(candidateD1, d1, days[d1], mealPlaces, travelMatrix, config)) continue;
+            if (!canScheduleDay(candidateD2, d2, days[d2], mealPlaces, travelMatrix, config)) continue;
+
+            const saved = [dayPlaceLists[d1], dayPlaceLists[d2]];
+            dayPlaceLists[d1] = candidateD1;
+            dayPlaceLists[d2] = candidateD2;
+
+            const candidateScore = computeSolutionScore(dayPlaceLists, travelMatrix);
+
+            if (candidateScore > currentScore) {
+              currentScore = candidateScore;
+              improved = true;
+            } else {
+              dayPlaceLists[d1] = saved[0];
+              dayPlaceLists[d2] = saved[1];
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // --- Recovery: try to insert skipped places ---
+  const allPlaces = new Map(places.map((p) => [p.id, p]));
+  for (let i = skipped.length - 1; i >= 0; i--) {
+    const place = allPlaces.get(skipped[i]);
+    if (!place) continue;
+
+    let bestDay = -1;
+    let bestScore = currentScore;
+
+    for (let d = 0; d < numDays; d++) {
+      if (!hasOpenWindow(place, days[d].dayOfWeek)) continue;
+
+      const candidate = [...dayPlaceLists[d], place];
+      if (!canScheduleDay(candidate, d, days[d], mealPlaces, travelMatrix, config)) continue;
+
+      const saved = dayPlaceLists[d];
+      dayPlaceLists[d] = candidate;
+      const candidateScore = computeSolutionScore(dayPlaceLists, travelMatrix);
+      dayPlaceLists[d] = saved;
+
+      if (candidateScore > bestScore) {
+        bestScore = candidateScore;
+        bestDay = d;
+      }
+    }
+
+    if (bestDay !== -1) {
+      dayPlaceLists[bestDay].push(place);
+      skipped.splice(i, 1);
+      currentScore = bestScore;
+    }
+  }
+}
+
+// --- Quick feasibility check (no meals, optimistic) ---
+
+function quickFeasibilityCheck(
+  places: SolverPlace[],
+  day: SolverDay,
+  travelMatrix: TravelMatrix,
+  config: SolverConfig
+): boolean {
+  for (const p of places) {
+    if (!hasOpenWindow(p, day.dayOfWeek)) return false;
+  }
+
+  const ordered = nearestNeighborOrder(places, travelMatrix);
+  let time = config.dayStartTime;
+  let lastId: string | null = null;
+
+  for (const p of ordered) {
+    time += getTravelTime(travelMatrix, lastId, p.id);
+    const w = findOpenWindow(p, day.dayOfWeek, time);
+    if (!w) return false;
+    time = Math.max(time, w.opensAt) + p.durationMinutes;
+    if (time > config.dayEndTime) return false;
+    lastId = p.id;
+  }
+
+  return true;
+}
+
+// --- Solution scoring for local search ---
+
+function computeSolutionScore(
+  dayPlaceLists: SolverPlace[][],
+  travelMatrix: TravelMatrix
+): number {
+  let score = 0;
+  let placedCount = 0;
+
+  for (const dayList of dayPlaceLists) {
+    for (const p of dayList) {
+      score += 1000 + (p.score || 50);
+      placedCount++;
+    }
+  }
+
+  for (const dayList of dayPlaceLists) {
+    if (dayList.length < 2) continue;
+    const ordered = nearestNeighborOrder(dayList, travelMatrix);
+    let lastId: string | null = null;
+    for (const p of ordered) {
+      score -= getTravelTime(travelMatrix, lastId, p.id);
+      lastId = p.id;
+    }
+  }
+
+  if (dayPlaceLists.length > 0 && placedCount > 0) {
+    const avg = placedCount / dayPlaceLists.length;
+    for (const dayList of dayPlaceLists) {
+      score -= Math.abs(dayList.length - avg) * 50;
+    }
+  }
+
+  return score;
 }
 
 // --- Per-day scheduling ---
@@ -139,27 +449,9 @@ function findBestDaySchedule(
     };
   }
 
-  // Use a greedy nearest-neighbor approach instead of exhaustive permutations
-  const unvisited = [...places];
-  const ordered: SolverPlace[] = [];
-  let currentId: string | null = null;
-
-  while (unvisited.length > 0) {
-    let bestNextIndex = -1;
-    let minTravel = Infinity;
-
-    for (let i = 0; i < unvisited.length; i++) {
-      const travel = getTravelTime(travelMatrix, currentId, unvisited[i].id);
-      if (travel < minTravel) {
-        minTravel = travel;
-        bestNextIndex = i;
-      }
-    }
-
-    const nextPlace = unvisited.splice(bestNextIndex, 1)[0];
-    ordered.push(nextPlace);
-    currentId = nextPlace.id;
-  }
+  // Use Held-Karp DP for optimal ordering, fallback to nearest-neighbor
+  const ordered = heldKarpOrder(places, day, travelMatrix, config)
+    ?? nearestNeighborOrder(places, travelMatrix);
 
   const result = scheduleDayInOrder(
     ordered,
