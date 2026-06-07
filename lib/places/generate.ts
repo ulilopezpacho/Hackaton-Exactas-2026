@@ -26,7 +26,9 @@ export interface GeneratePlacesInput {
   title: string;
   startsOn: string;
   endsOn: string;
-  interests: string[];
+  routeCustomizationPrompt?: string;
+  selectedPlaceNames?: string[];
+  interests?: string[];
   pace?: string;
   budget?: string;
   travelStylePrompt?: string;
@@ -56,17 +58,36 @@ export async function generatePlaces(
 
   let selections: PlaceSelection[] = [];
 
-  const systemPrompt = `You are an expert travel catalog curator. Your goal is to find and curate a list of 15-25 high-quality places for a trip to ${
-    input.destination
-  }.
+  const tier1 = input.routeCustomizationPrompt
+    ? `## 1. Trip notes (highest priority)\n"${input.routeCustomizationPrompt}"\nUse this as your primary signal for what types of places to search for.`
+    : "";
 
-Trip Context:
-- Title: ${input.title}
-- Dates: ${input.startsOn} to ${input.endsOn}
-- Interests: ${input.interests.join(", ")}
-- Pace: ${input.pace || "balanced"}
-- Budget: ${input.budget || "medium"}
-- Style: ${input.travelStylePrompt || "Not specified"}
+  const tier2 =
+    input.selectedPlaceNames && input.selectedPlaceNames.length > 0
+      ? `## 2. User's selected places (secondary)\nThe user has already chosen these places for this trip: ${input.selectedPlaceNames.join(", ")}.\nFind complementary places that pair well with these selections.`
+      : "";
+
+  const interests = input.interests ?? [];
+  const tier3Lines = [
+    interests.length > 0 ? `- Interests: ${interests.join(", ")}` : "",
+    `- Pace: ${input.pace || "balanced"}`,
+    `- Budget: ${input.budget || "medium"}`,
+    input.travelStylePrompt ? `- Style: ${input.travelStylePrompt}` : "",
+  ].filter(Boolean);
+  const tier3 = `## ${tier1 || tier2 ? "3. " : ""}General preferences${tier1 || tier2 ? " (lowest priority, use as fallback)" : ""}\n${tier3Lines.join("\n")}`;
+
+  const contextSection = [
+    `Trip: ${input.title} · ${input.startsOn} to ${input.endsOn}`,
+    tier1,
+    tier2,
+    tier3,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  const systemPrompt = `You are an expert travel catalog curator. Your goal is to find and curate a list of 15-25 high-quality places for a trip to ${input.destination}.
+
+${contextSection}
 
 Instructions:
 1. To be efficient, you SHOULD provide multiple "search_places" calls in a single response to cover different categories or interests (e.g., museums, restaurants, parks) simultaneously.

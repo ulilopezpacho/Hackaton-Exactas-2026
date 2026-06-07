@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { resolveDestination } from "@/lib/places/google";
 import { generatePlaces } from "@/lib/places/generate";
-import { extractSearchInterestsCached } from "@/lib/places/extract-preferences";
 import { mergeSearchInterests } from "@/lib/places/preference-interests";
 
 export async function POST(
@@ -60,15 +59,46 @@ export async function POST(
     .eq("user_id", user.id)
     .maybeSingle();
 
-  // The route customization prompt takes precedence over the global profile:
-  // fall back to saved interests only when the prompt yields none.
-  const extractedInterests = await extractSearchInterestsCached(
-    trip.route_customization_prompt,
-  );
-  const searchInterests =
-    extractedInterests.length > 0
-      ? extractedInterests
-      : mergeSearchInterests([], (prefs?.interests as string[]) || []);
+  // Without a route prompt, fall back to global interests as search guidance.
+  const fallbackInterests = trip.route_customization_prompt
+    ? []
+    : mergeSearchInterests([], (prefs?.interests as string[]) || []);
+
+  // Fetch any places the user has already selected for this trip (from a
+  // previous wizard pass) so generatePlaces can bias toward complementary picks.
+  const { data: wizardItineraries } = await supabase
+    .from("itineraries")
+    .select("id")
+    .eq("trip_id", tripId)
+    .eq("itinerary_type", "wizard_tentative");
+
+  const wizardItineraryIds = (wizardItineraries ?? []).map((r: { id: string }) => r.id);
+
+  let selectedPlaceNames: string[] = [];
+  if (wizardItineraryIds.length > 0) {
+    const { data: wizardItems } = await supabase
+      .from("itinerary_items")
+      .select("place_id, title")
+      .eq("item_type", "place")
+      .in("itinerary_id", wizardItineraryIds);
+
+    const placeIds = (wizardItems ?? [])
+      .map((i: { place_id: string | null }) => i.place_id)
+      .filter((id: string | null): id is string => !!id);
+
+    if (placeIds.length > 0) {
+      const { data: placeRows } = await supabase
+        .from("places")
+        .select("name")
+        .in("id", placeIds);
+      selectedPlaceNames = (placeRows ?? []).map((p: { name: string }) => p.name);
+    } else {
+      // Fall back to titles stored on the item itself (manual places have no place_id)
+      selectedPlaceNames = (wizardItems ?? [])
+        .map((i: { title: string }) => i.title)
+        .filter(Boolean);
+    }
+  }
 
   // 4. Resolve and Upsert Destination
   const destinationCandidate = await resolveDestination(destinationText);
@@ -116,7 +146,9 @@ export async function POST(
     title: trip.title,
     startsOn: trip.starts_on,
     endsOn: trip.ends_on,
-    interests: searchInterests,
+    routeCustomizationPrompt: trip.route_customization_prompt ?? undefined,
+    selectedPlaceNames,
+    interests: fallbackInterests.length > 0 ? fallbackInterests : undefined,
     pace: (prefs?.pace as string) || undefined,
     budget: (prefs?.budget as string) || undefined,
     travelStylePrompt: (prefs?.travel_style_prompt as string) || undefined,

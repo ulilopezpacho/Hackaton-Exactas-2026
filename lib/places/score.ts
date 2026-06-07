@@ -1,9 +1,3 @@
-import { createAnthropicClient } from "../ai/anthropic";
-import type {
-  ToolUseBlock,
-  Tool,
-} from "@anthropic-ai/sdk/resources/messages.mjs";
-
 export interface PlaceForScoring {
   id: string;
   name: string;
@@ -34,6 +28,8 @@ export interface ScoredPlace {
   reasoning: string;
 }
 
+// qualityScore is on a 1–5 Bayesian scale; normalize to 0–100.
+// popularity is log10(reviews + 1), max ~4 for 10k reviews; clamp to 0–100.
 export async function scorePlaces(
   input: ScorePlacesInput,
 ): Promise<ScoredPlace[]> {
@@ -41,13 +37,25 @@ export async function scorePlaces(
 
   if (places.length === 0) return [];
 
-  console.log(`[scorePlaces] MOCKING scores for ${places.length} places...`);
+  const scored: ScoredPlace[] = places.map((p) => {
+    const qualityNorm =
+      p.qualityScore != null ? ((p.qualityScore - 1) / 4) * 100 : null;
+    const popularityNorm =
+      p.popularity != null ? Math.min(p.popularity / 4, 1) * 100 : null;
 
-  const scoredPlaces: ScoredPlace[] = places.map((p) => ({
-    id: p.id,
-    score: Math.floor(Math.random() * 100) + 1,
-    reasoning: "Randomly assigned score (MOCKED)",
-  }));
+    let score: number;
+    if (qualityNorm != null && popularityNorm != null) {
+      score = 0.7 * qualityNorm + 0.3 * popularityNorm;
+    } else if (qualityNorm != null) {
+      score = qualityNorm;
+    } else if (popularityNorm != null) {
+      score = popularityNorm;
+    } else {
+      score = 50;
+    }
 
-  return scoredPlaces.sort((a, b) => b.score - a.score);
+    return { id: p.id, score: Math.round(score), reasoning: "global" };
+  });
+
+  return scored.sort((a, b) => b.score - a.score);
 }
