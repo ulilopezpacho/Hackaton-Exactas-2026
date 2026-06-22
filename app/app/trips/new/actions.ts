@@ -5,6 +5,12 @@ import { redirect } from "next/navigation";
 import { parseTripDates } from "@/lib/trips/wizard";
 import { createClient } from "@/utils/supabase/server";
 import type { Database } from "@/lib/supabase/database.types";
+import {
+  DEFAULT_PLACE_PRIORITY,
+  PLACE_PRIORITY_OPTIONS,
+  isPlacePriority,
+  type PlacePriority,
+} from "@/lib/places/priority";
 
 type WizardPlacePayload = {
   address?: string | null;
@@ -14,6 +20,7 @@ type WizardPlacePayload = {
   longitude?: number | null;
   name: string;
   placeId?: string;
+  priority: PlacePriority;
 };
 
 type WizardDraftPayload = {
@@ -109,9 +116,12 @@ export async function saveTripGenerationContext(formData: FormData) {
   const places = await upsertPlaces(payload.places, user.id);
   const params = new URLSearchParams({ tripId: payload.tripId });
 
-  for (const place of places) {
+  // `upsertPlaces` returns ids 1:1 and in the same order as `payload.places`, so
+  // we can append the matching priority alongside each placeId (aligned by index).
+  places.forEach((place, index) => {
     params.append("placeId", place.id);
-  }
+    params.append("priority", payload.places[index]?.priority ?? DEFAULT_PLACE_PRIORITY);
+  });
 
   redirect(`/app/trips/new/generating?${params}`);
 }
@@ -174,6 +184,10 @@ function parseWizardDraftPayload(value: string): WizardDraftPayload {
             "placeId" in place && typeof place.placeId === "string"
               ? place.placeId
               : undefined,
+          priority:
+            "priority" in place && isPlacePriority(place.priority)
+              ? place.priority
+              : DEFAULT_PLACE_PRIORITY,
         };
       })
       .filter((place): place is WizardPlacePayload => Boolean(place?.name)),
@@ -199,6 +213,12 @@ async function upsertPlaces(places: WizardPlacePayload[], userId: string) {
         .maybeSingle());
 
     if (existing && existing.data) {
+      // The place is already in the user's catalog: keep its row but refresh the
+      // visit duration to whatever the user just chose, so the solver uses it.
+      await supabase
+        .from("places")
+        .update({ default_duration_minutes: place.durationMinutes })
+        .eq("id", existing.data.id);
       persisted.push(existing.data);
       continue;
     }
@@ -238,14 +258,18 @@ async function upsertPlaces(places: WizardPlacePayload[], userId: string) {
 
 function buildCustomizationPrompt(payload: WizardDraftPayload) {
   const notes = payload.notes.trim();
+  const priorityLabels = Object.fromEntries(
+    PLACE_PRIORITY_OPTIONS.map((option) => [option.value, option.label]),
+  ) as Record<PlacePriority, string>;
   const priorityText = payload.places
-    .map((place, index) => {
+    .map((place) => {
       const details = [place.address, place.category]
         .filter(Boolean)
         .join(" · ");
+      const label = priorityLabels[place.priority];
       return details
-        ? `${index + 1}. ${place.name} (${details})`
-        : `${index + 1}. ${place.name}`;
+        ? `- ${place.name} (${details}) — ${label}`
+        : `- ${place.name} — ${label}`;
     })
     .join("\n");
 

@@ -3,7 +3,7 @@ import { generateItinerary } from "@/lib/itinerary/generate";
 
 export async function POST(request: Request) {
   const body = await request.json();
-  const { tripId, placeIds, config } = body;
+  const { tripId, placeIds, priorities, config } = body;
 
   if (!tripId || !Array.isArray(placeIds)) {
     return NextResponse.json(
@@ -12,6 +12,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await generateItinerary(tripId, placeIds, config);
+  const result = await generateItinerary(tripId, placeIds, priorities, config);
   return NextResponse.json(result);
 }

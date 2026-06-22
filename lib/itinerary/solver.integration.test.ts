@@ -6,7 +6,6 @@
 
 import { solve } from "./solver";
 import type {
-  SolverInput,
   SolverPlace,
   SolverDay,
   SolverConfig,
@@ -172,25 +171,71 @@ describe("Solver integration (small inputs)", () => {
     expect(Math.abs(perDay[0] - perDay[1])).toBeLessThanOrEqual(1);
   });
 
-  test("inserts meals in trailing free time", () => {
+  test("schedules mandatory meals anchored to their clock windows", () => {
     const places = [alwaysOpen("x", "Quick Visit", 60)];
-    const meals = [meal("lunch", "Lunch Spot", 60)];
+    const meals = [meal("lunch", "Lunch Spot", 60), meal("dinner", "Dinner Spot", 60)];
     const allIds = [...places, ...meals].map((p) => p.id);
+
+    const mealConfig: SolverConfig = {
+      ...baseConfig,
+      meals: [
+        { label: "Almuerzo", opensAt: 12 * 60, closesAt: 14 * 60 + 30, durationMinutes: 60 },
+        { label: "Cena", opensAt: 20 * 60, closesAt: 21 * 60 + 30, durationMinutes: 60 },
+      ],
+    };
 
     const result = solve({
       places, mealPlaces: meals, days: oneDay,
       travelMatrix: constantTravelMatrix(allIds, 5),
-      config: baseConfig,
+      config: mealConfig,
     });
 
     const mealItems = result.days[0].items.filter(
       (i) => i.type === "place" && i.placeId && i.placeId !== "x"
     );
-    expect(mealItems.length).toBeGreaterThanOrEqual(1);
+    // Both mandatory meals are scheduled, each within its window.
+    expect(mealItems.length).toBe(2);
 
-    const actEnd = result.days[0].items.find((i) => i.placeId === "x")!.endMinute;
-    for (const mi of mealItems) {
-      expect(mi.startMinute).toBeGreaterThanOrEqual(actEnd);
+    const lunch = result.days[0].items.find((i) => i.title.startsWith("Almuerzo"))!;
+    expect(lunch.startMinute).toBeGreaterThanOrEqual(12 * 60);
+    expect(lunch.startMinute).toBeLessThanOrEqual(14 * 60 + 30);
+
+    const dinner = result.days[0].items.find((i) => i.title.startsWith("Cena"))!;
+    expect(dinner.startMinute).toBeGreaterThanOrEqual(20 * 60);
+    expect(dinner.startMinute).toBeLessThanOrEqual(21 * 60 + 30);
+  });
+
+  test("returns to the depot before the arrival deadline each day", () => {
+    const places = [
+      alwaysOpen("p1", "P1", 60),
+      alwaysOpen("p2", "P2", 60),
+      alwaysOpen("p3", "P3", 60),
+    ];
+    const allIds = ["hotel", ...places.map((p) => p.id)];
+
+    const result = solve({
+      places,
+      mealPlaces: [],
+      days: twoDays,
+      travelMatrix: constantTravelMatrix(allIds, 20),
+      config: baseConfig,
+      startPlaceId: "hotel",
+      endPlaceId: "hotel",
+    });
+
+    for (const day of result.days) {
+      if (day.items.length === 0) continue;
+
+      // First leg leaves the hotel at the start of the day.
+      expect(day.items[0]).toMatchObject({
+        type: "transfer",
+        startMinute: baseConfig.dayStartTime,
+      });
+
+      // Last leg is the return transfer to the hotel, arriving before the deadline.
+      const last = day.items[day.items.length - 1];
+      expect(last.type).toBe("transfer");
+      expect(last.endMinute).toBeLessThanOrEqual(baseConfig.dayEndTime);
     }
   });
 
@@ -251,6 +296,37 @@ describe("Solver integration (small inputs)", () => {
 
     expect(elapsed).toBeLessThan(5000);
     expect(result.score).toBeGreaterThan(0);
+  });
+
+  test("priority levels: keeps higher-priority places when the day is tight", () => {
+    // Scores mirror lib/places/priority.ts bases: must=100000, like=2000, maybe=0.
+    const scored = (id: string, score: number): SolverPlace => ({
+      id,
+      name: id,
+      durationMinutes: 120,
+      openingWindows: [],
+      score,
+    });
+    const must = scored("must", 100_000);
+    const like = scored("like", 2_000);
+    const maybe = scored("maybe", 0);
+    const allIds = [must.id, like.id, maybe.id];
+
+    const result = solve({
+      // Intentionally unordered: the score, not the input order, must decide.
+      places: [maybe, like, must],
+      mealPlaces: [],
+      days: oneDay,
+      travelMatrix: constantTravelMatrix(allIds, 30),
+      // 09:00–13:30 with 120-min visits + 30-min hops fits exactly two activities.
+      config: { ...baseConfig, dayEndTime: 13 * 60 + 30 },
+    });
+
+    const placed = placedPlaceIds(result);
+    expect(placed.has("must")).toBe(true); // must-go always survives
+    expect(placed.has("like")).toBe(true); // like beats maybe for the 2nd slot
+    expect(placed.has("maybe")).toBe(false);
+    expect(result.unplacedPlaces).toContain("maybe");
   });
 
   test("meal variety: uses both available meal places", () => {

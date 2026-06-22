@@ -2,9 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
-  ArrowDownIcon,
-  ArrowUpIcon,
-  GripVerticalIcon,
+  ClockIcon,
   LoaderCircleIcon,
   PlusIcon,
   SearchIcon,
@@ -23,6 +21,12 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import {
+  DEFAULT_PLACE_PRIORITY,
+  PLACE_PRIORITY_OPTIONS,
+  type PlacePriority,
+} from "@/lib/places/priority";
 
 import { saveTripGenerationContext } from "../actions";
 
@@ -48,7 +52,26 @@ type PlaceDraft = {
   longitude: number | null;
   name: string;
   placeId?: string;
+  priority: PlacePriority;
+  score?: number;
 };
+
+const AI_BATCH_SIZE = 5;
+
+const DEFAULT_DURATION_MINUTES = 90;
+
+// Visit-duration presets (minutes) the user can pick per activity. The chosen
+// value is persisted as `default_duration_minutes` and used directly by the
+// solver to schedule the day.
+const DURATION_PRESETS = [30, 45, 60, 90, 120, 150, 180, 240, 300, 360, 480];
+
+function formatDuration(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours === 0) return `${mins} min`;
+  if (mins === 0) return `${hours} h`;
+  return `${hours} h ${mins} min`;
+}
 
 export function TripPlacesForm({
   initialNotes = "",
@@ -65,6 +88,10 @@ export function TripPlacesForm({
   const [message, setMessage] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [aiCandidates, setAiCandidates] = useState<PlaceDraft[]>([]);
+  const [aiAddedCount, setAiAddedCount] = useState(0);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   const payload = useMemo(
     () =>
@@ -161,7 +188,7 @@ export function TripPlacesForm({
 
         addPlace({
           ...body.place,
-          durationMinutes: 90,
+          durationMinutes: DEFAULT_DURATION_MINUTES,
         });
       } catch (error) {
         setMessage(
@@ -172,7 +199,7 @@ export function TripPlacesForm({
         addPlace({
           address: suggestion.secondaryText || null,
           category: null,
-          durationMinutes: 90,
+          durationMinutes: DEFAULT_DURATION_MINUTES,
           latitude: null,
           longitude: null,
           name: suggestion.primaryText,
@@ -191,14 +218,16 @@ export function TripPlacesForm({
     addPlace({
       address: null,
       category: null,
-      durationMinutes: 90,
+      durationMinutes: DEFAULT_DURATION_MINUTES,
       latitude: null,
       longitude: null,
       name,
     });
   }
 
-  function addPlace(place: PlaceDraft) {
+  function addPlace(
+    place: Omit<PlaceDraft, "priority"> & { priority?: PlacePriority },
+  ) {
     setPlaces((current) => {
       if (place.placeId && current.some((item) => item.placeId === place.placeId)) {
         return current;
@@ -208,25 +237,90 @@ export function TripPlacesForm({
         return current;
       }
 
-      return [...current, place];
+      return [
+        ...current,
+        { ...place, priority: place.priority ?? DEFAULT_PLACE_PRIORITY },
+      ];
     });
     setQuery("");
     setSuggestions([]);
   }
 
-  function movePlace(index: number, direction: -1 | 1) {
+  function setPlacePriority(index: number, priority: PlacePriority) {
+    setPlaces((current) =>
+      current.map((place, placeIndex) =>
+        placeIndex === index ? { ...place, priority } : place,
+      ),
+    );
+  }
+
+  function setPlaceDuration(index: number, durationMinutes: number) {
+    setPlaces((current) =>
+      current.map((place, placeIndex) =>
+        placeIndex === index ? { ...place, durationMinutes } : place,
+      ),
+    );
+  }
+
+  function addAiBatch(candidates: PlaceDraft[], from: number) {
+    const batch = candidates.slice(from, from + AI_BATCH_SIZE);
+
     setPlaces((current) => {
-      const nextIndex = index + direction;
-
-      if (nextIndex < 0 || nextIndex >= current.length) {
-        return current;
-      }
-
       const next = [...current];
-      const [place] = next.splice(index, 1);
-      next.splice(nextIndex, 0, place);
+      for (const place of batch) {
+        const isDuplicate = place.placeId
+          ? next.some((item) => item.placeId === place.placeId)
+          : next.some((item) => item.name === place.name);
+        if (!isDuplicate) {
+          next.push(place);
+        }
+      }
       return next;
     });
+    setAiAddedCount(from + batch.length);
+  }
+
+  async function generateAiPlaces() {
+    setAiLoading(true);
+    setAiError(null);
+
+    try {
+      const response = await fetch(`/api/trips/${trip.id}/suggest-places`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes }),
+      });
+      const body = (await response.json()) as {
+        error?: string;
+        places?: (Omit<PlaceDraft, "priority"> & { priority?: PlacePriority })[];
+      };
+
+      if (!response.ok || !body.places) {
+        throw new Error(body.error ?? "No pudimos sugerir lugares con IA.");
+      }
+
+      if (body.places.length === 0) {
+        setAiError(
+          "La IA no encontró lugares para sugerir. Probá agregar una descripción del viaje.",
+        );
+        return;
+      }
+
+      const candidates: PlaceDraft[] = body.places.map((place) => ({
+        ...place,
+        priority: place.priority ?? DEFAULT_PLACE_PRIORITY,
+      }));
+      setAiCandidates(candidates);
+      addAiBatch(candidates, 0);
+    } catch (error) {
+      setAiError(
+        error instanceof Error
+          ? error.message
+          : "No pudimos sugerir lugares con IA.",
+      );
+    } finally {
+      setAiLoading(false);
+    }
   }
 
   return (
@@ -318,6 +412,44 @@ export function TripPlacesForm({
               {message}
             </p>
           ) : null}
+
+          <div className="grid gap-2 border-t pt-3 md:pt-4">
+            <p className="text-sm text-muted-foreground">
+              ¿No sabés por dónde empezar? Dejá que la IA proponga lugares según
+              tu descripción y tus gustos, y los cargue a tu lista de a {AI_BATCH_SIZE}.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                disabled={aiLoading}
+                onClick={generateAiPlaces}
+                type="button"
+                variant="secondary"
+              >
+                {aiLoading ? (
+                  <LoaderCircleIcon className="animate-spin" data-icon="inline-start" />
+                ) : (
+                  <SparklesIcon data-icon="inline-start" />
+                )}
+                {aiLoading ? "Buscando lugares..." : "Agregar lugares con IA"}
+              </Button>
+              {aiCandidates.length > 0 && aiAddedCount < aiCandidates.length ? (
+                <Button
+                  disabled={aiLoading}
+                  onClick={() => addAiBatch(aiCandidates, aiAddedCount)}
+                  type="button"
+                  variant="ghost"
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Cargar {AI_BATCH_SIZE} más
+                </Button>
+              ) : null}
+            </div>
+            {aiError ? (
+              <p className="rounded-xl border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-foreground">
+                {aiError}
+              </p>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
 
@@ -344,9 +476,8 @@ export function TripPlacesForm({
       <section className="grid gap-2 md:gap-3">
         <div className="flex items-center justify-between gap-3">
           <Badge variant="secondary">Lista de prioridades</Badge>
-          <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <GripVerticalIcon className="size-3" />
-            Usá las flechas para reordenar
+          <span className="text-xs text-muted-foreground">
+            Elegí qué tan importante es cada lugar
           </span>
         </div>
 
@@ -358,38 +489,26 @@ export function TripPlacesForm({
         ) : (
           places.map((place, index) => (
             <Card key={`${place.placeId ?? place.name}-${index}`} size="sm">
-              <CardContent className="flex items-center gap-3">
-                <Badge className="size-8 rounded-full p-0" variant="secondary">
-                  {index + 1}
-                </Badge>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{place.name}</p>
-                  {place.address ? (
-                    <p className="mt-1 truncate text-sm text-muted-foreground">
-                      {place.address}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex items-center gap-1">
+              <CardContent className="grid gap-3">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-semibold">{place.name}</p>
+                      {place.score != null ? (
+                        <Badge className="shrink-0 gap-1" variant="secondary">
+                          <SparklesIcon className="size-3" />
+                          {place.score}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    {place.address ? (
+                      <p className="mt-1 truncate text-sm text-muted-foreground">
+                        {place.address}
+                      </p>
+                    ) : null}
+                  </div>
                   <Button
-                    disabled={index === 0}
-                    onClick={() => movePlace(index, -1)}
-                    size="icon-sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <ArrowUpIcon />
-                  </Button>
-                  <Button
-                    disabled={index === places.length - 1}
-                    onClick={() => movePlace(index, 1)}
-                    size="icon-sm"
-                    type="button"
-                    variant="ghost"
-                  >
-                    <ArrowDownIcon />
-                  </Button>
-                  <Button
+                    aria-label={`Quitar ${place.name}`}
                     onClick={() =>
                       setPlaces((current) =>
                         current.filter((_, placeIndex) => placeIndex !== index),
@@ -401,6 +520,57 @@ export function TripPlacesForm({
                   >
                     <Trash2Icon />
                   </Button>
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <ClockIcon className="size-3.5" />
+                    Duración de la visita
+                  </span>
+                  <select
+                    aria-label={`Duración de ${place.name}`}
+                    className="h-8 rounded-[8px] border border-input bg-card px-2 text-sm font-medium focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    onChange={(event) =>
+                      setPlaceDuration(index, Number(event.target.value))
+                    }
+                    value={place.durationMinutes}
+                  >
+                    {Array.from(
+                      new Set([...DURATION_PRESETS, place.durationMinutes]),
+                    )
+                      .sort((a, b) => a - b)
+                      .map((minutes) => (
+                        <option key={minutes} value={minutes}>
+                          {formatDuration(minutes)}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div
+                  className="grid grid-cols-3 gap-1 rounded-[10px] bg-muted p-1"
+                  role="group"
+                  aria-label={`Prioridad de ${place.name}`}
+                >
+                  {PLACE_PRIORITY_OPTIONS.map((option) => {
+                    const selected = place.priority === option.value;
+                    return (
+                      <button
+                        aria-pressed={selected}
+                        className={cn(
+                          "rounded-[7px] px-1 py-1.5 text-xs font-medium transition-colors",
+                          selected
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                        key={option.value}
+                        onClick={() => setPlacePriority(index, option.value)}
+                        type="button"
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
