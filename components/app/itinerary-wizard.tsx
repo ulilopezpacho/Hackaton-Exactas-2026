@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { CheckIcon, SparklesIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { PlacePriority } from "@/lib/places/priority";
 
 type StepStatus = "pending" | "loading" | "completed";
 
@@ -13,8 +14,7 @@ interface Step {
 }
 
 const STEPS: Step[] = [
-  { id: "catalog", label: "Descubriendo lugares en el destino" },
-  { id: "reading", label: "Leyendo tus preferencias" },
+  { id: "reading", label: "Leyendo tu lista y preferencias" },
   { id: "ordering", label: "Ordenando por cercanía y horarios" },
   { id: "calculating", label: "Calculando trayectos a pie" },
   { id: "filling", label: "Rellenando los huecos libres" },
@@ -23,18 +23,19 @@ const STEPS: Step[] = [
 export function ItineraryWizard({
   tripId,
   placeIds,
+  priorities,
   tripTitle,
   dayCount,
 }: {
   tripId: string;
   placeIds: string[];
+  priorities?: Record<string, PlacePriority>;
   tripTitle: string;
   dayCount: number;
 }) {
   const router = useRouter();
   const [stepStatuses, setStepStatuses] = useState<Record<string, StepStatus>>({
-    catalog: "loading",
-    reading: "pending",
+    reading: "loading",
     ordering: "pending",
     calculating: "pending",
     filling: "pending",
@@ -48,36 +49,15 @@ export function ItineraryWizard({
 
     async function startGeneration() {
       try {
-        // Step 1: Ensure catalog exists
-        console.log("[Wizard] Triggering place catalog generation...");
-        const catalogPromise = fetch(`/api/trips/${tripId}/place-catalog`, {
-          method: "POST",
-        });
-
-        // We give the catalog a bit of time but we can start reading the user's places in parallel
-        await advanceStep("catalog", 1000);
-        
-        // Step 2: Reading user places
-        await advanceStep("reading", 1200);
-
-        // Step 3: Wait for catalog to be at least partially done or finished
-        // generatePlaces takes time, so we animate the "Ordering" while it works
-        setStepStatuses((prev) => ({ ...prev, ordering: "loading" }));
-        
-        const catalogResponse = await catalogPromise;
-        if (!catalogResponse.ok) {
-          console.warn("[Wizard] Catalog generation failed, proceeding with priority places only.");
-        } else {
-          console.log("[Wizard] Catalog generation completed.");
-        }
-
-        // Now that catalog is in DB, trigger the actual itinerary generation
+        // The catalog is no longer generated here — the itinerary is built only
+        // from the places the user loaded into their list (manual + AI).
         const generationPromise = fetch("/api/itinerary/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tripId, placeIds }),
+          body: JSON.stringify({ tripId, placeIds, priorities }),
         });
 
+        await advanceStep("reading", 1200);
         await advanceStep("ordering", 2000);
         await advanceStep("calculating", 1500);
         
@@ -116,7 +96,7 @@ export function ItineraryWizard({
     }
 
     void startGeneration();
-  }, [tripId, placeIds, router]);
+  }, [tripId, placeIds, priorities, router]);
 
   if (error) {
     return (

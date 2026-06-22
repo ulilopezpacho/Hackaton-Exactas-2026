@@ -3,6 +3,11 @@ import { solve } from "./solver";
 import { enrichRecommendations } from "./enrich-recommendations";
 import { scorePlaces } from "@/lib/places/score";
 import type { PlaceForScoring, UserPreferencesForScoring } from "@/lib/places/score";
+import {
+  DEFAULT_PLACE_PRIORITY,
+  PLACE_PRIORITY_BASE,
+  type PlacePriority,
+} from "@/lib/places/priority";
 import { extractSearchInterestsCached } from "@/lib/places/extract-preferences";
 import { matchCatalogCategories } from "@/lib/places/preference-interests";
 import type {
@@ -16,11 +21,18 @@ import type {
 
 const MEAL_CATEGORIES = ["restaurante", "café", "cafetería", "bar", "gastro"];
 const WALKING_SPEED_KMH = 5;
+const DEPOT_ID = "__depot__";
 
 const DEFAULT_CONFIG: SolverConfig = {
   dayStartTime: 9 * 60,
   dayEndTime: 22 * 60,
   mealIntervalMinutes: 240,
+  // Mandatory meals anchored to clock windows. Closing times leave a buffer so
+  // the route can still return to the depot before dayEndTime.
+  meals: [
+    { label: "Almuerzo", opensAt: 13 * 60, closesAt: 14 * 60 + 30, durationMinutes: 60 },
+    { label: "Cena", opensAt: 20 * 60, closesAt: 20 * 60 + 30, durationMinutes: 75 },
+  ],
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,9 +61,11 @@ interface WindowRow {
 export async function generateItinerary(
   tripId: string,
   placeIds: string[],
+  priorities?: Record<string, PlacePriority>,
   configOverrides?: Partial<SolverConfig>
 ): Promise<SolverResult> {
-  console.log(`[generateItinerary] Starting for trip ${tripId}. Priorities:`, placeIds);
+  console.log(`[generateItinerary] Starting for trip ${tripId}. Place ids:`, placeIds);
+  console.log(`[generateItinerary] Priorities:`, priorities ?? "(none — defaulting all)");
   const supabase: AnySupabase = await createClient();
   const config = { ...DEFAULT_CONFIG, ...configOverrides };
 
@@ -93,16 +107,22 @@ export async function generateItinerary(
     }`
   );
 
-  // Narrow the destination catalog to categories relevant to the effective
-  // interests, instead of pulling every active place. User-prioritized places and
-  // meal places are always kept; if nothing matches we fall back to the full
-  // catalog so we never produce an empty itinerary.
+  // The itinerary is built strictly from the places the user loaded into their
+  // list (manual + AI-suggested). When a list is present we query ONLY those
+  // places — `destination_id` is still used afterwards to enrich meal/free slots
+  // with nearby Google results, but it must NOT pull the whole destination
+  // catalog, which would outscore and drop the user's own picks.
   let placesQuery = supabase
     .from("places")
     .select("id, name, description, category, default_duration_minutes, rating, user_ratings_total, quality_score, popularity, location")
     .eq("status", "active");
 
-  if (tripData.destination_id) {
+  if (placeIds.length > 0) {
+    console.log(`[generateItinerary] List-driven: querying only the ${placeIds.length} user-selected places`);
+    placesQuery = placesQuery.in("id", placeIds);
+  } else if (tripData.destination_id) {
+    // No user list: fall back to the destination catalog so we never produce an
+    // empty itinerary. Narrow to categories relevant to the effective interests.
     const categoryFilter = await buildCategoryFilter(
       supabase,
       tripData.destination_id,
@@ -111,27 +131,18 @@ export async function generateItinerary(
 
     if (categoryFilter) {
       console.log(
-        `[generateItinerary] Querying priorities + ${categoryFilter.categories.length} matched categories ` +
+        `[generateItinerary] No list; querying ${categoryFilter.categories.length} matched categories ` +
           `(activities: [${categoryFilter.activity.join(", ")}], meals: [${categoryFilter.meal.join(", ")}])`
       );
-      const destinationFilter =
-        `and(destination_id.eq.${tripData.destination_id},category.in.(${toInList(categoryFilter.categories)}))`;
-      placesQuery = placeIds.length > 0
-        ? placesQuery.or(`id.in.(${placeIds.join(",")}),${destinationFilter}`)
-        : placesQuery.or(destinationFilter);
+      placesQuery = placesQuery.or(
+        `and(destination_id.eq.${tripData.destination_id},category.in.(${toInList(categoryFilter.categories)}))`
+      );
     } else {
-      console.log(`[generateItinerary] No category match; querying priorities + full destination ${tripData.destination_id} catalog`);
-      placesQuery = placeIds.length > 0
-        ? placesQuery.or(`id.in.(${placeIds.join(",")}),destination_id.eq.${tripData.destination_id}`)
-        : placesQuery.eq("destination_id", tripData.destination_id);
+      console.log(`[generateItinerary] No list and no category match; querying full destination ${tripData.destination_id} catalog`);
+      placesQuery = placesQuery.eq("destination_id", tripData.destination_id);
     }
   } else {
-    console.log(`[generateItinerary] Querying only priorities (no destination ID found)`);
-    if (placeIds.length > 0) {
-      placesQuery = placesQuery.in("id", placeIds);
-    } else {
-      throw new Error("Trip destination is missing and no optional places were selected.");
-    }
+    throw new Error("Trip destination is missing and no optional places were selected.");
   }
 
   const { data: placesRaw, error: placesError } = await placesQuery;
@@ -217,16 +228,25 @@ export async function generateItinerary(
     tripCustomizationPrompt: tripData.route_customization_prompt ?? undefined,
   });
 
-  const top30 = scored.slice(0, 30);
+  // Keep the raw Google quality score (0–100) for display purposes (stored on
+  // itinerary items below).
   const scoresByPlaceId = new Map(scored.map((s) => [s.id, s.score]));
 
-  const orderedPlaces: SolverPlace[] = [];
-  for (const s of top30) {
-    const p = places.find((pl) => pl.id === s.id);
-    if (p) {
-      orderedPlaces.push({ ...p, score: s.score });
-    }
-  }
+  // The score the solver optimises combines the user's per-place priority level
+  // (the dominant term) with the Google quality score (a within-level tie-breaker).
+  // The large gaps between levels make the solver keep the places the user cares
+  // about most. See lib/places/priority.ts.
+  const tierScoreFor = (id: string): number => {
+    const priority = priorities?.[id] ?? DEFAULT_PLACE_PRIORITY;
+    return PLACE_PRIORITY_BASE[priority] + (scoresByPlaceId.get(id) ?? 0);
+  };
+
+  // Rank activities by tier-aware score (not raw quality) before capping at 30,
+  // so "must go" places are never cut from what we send to the solver.
+  const orderedPlaces: SolverPlace[] = places
+    .map((p) => ({ ...p, score: tierScoreFor(p.id) }))
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, 30);
 
   if (orderedPlaces.length > 0) {
     console.log(`[generateItinerary] Scored ${scored.length} places. Top scoring place: ${orderedPlaces[0].name} (Score: ${orderedPlaces[0].score})`);
@@ -237,6 +257,9 @@ export async function generateItinerary(
   console.log(`[generateItinerary] Sending ${orderedPlaces.length} ordered places to solver`);
 
   const travelMatrix = buildTravelMatrix(placeRows);
+  // Anchor every day at a depot ("hotel"). We have no real hotel yet, so we use
+  // the catalog centroid as a stand-in: each day departs from and returns to it.
+  const depotId = addCentroidDepot(travelMatrix, placeRows);
 
   const input: SolverInput = {
     places: orderedPlaces,
@@ -244,6 +267,8 @@ export async function generateItinerary(
     days,
     travelMatrix,
     config,
+    startPlaceId: depotId,
+    endPlaceId: depotId,
   };
 
   const result = solve(input);
@@ -268,12 +293,30 @@ export async function generateItinerary(
     coordinatesByPlaceId,
   });
 
+  // Figure out which of the user's selected activities didn't make it into the
+  // schedule (they didn't fit in the day's time budget) so we can surface them.
+  const scheduledPlaceIds = new Set<string>();
+  for (const day of enrichedResult.days) {
+    for (const item of day.items) {
+      if (item.placeId) scheduledPlaceIds.add(item.placeId);
+    }
+  }
+  const skippedPlaces = places
+    .filter((p) => !scheduledPlaceIds.has(p.id))
+    .map((p) => ({ id: p.id, name: p.name }));
+  if (skippedPlaces.length > 0) {
+    console.log(
+      `[generateItinerary] ${skippedPlaces.length} selected places left out: ${skippedPlaces.map((p) => p.name).join(", ")}`
+    );
+  }
+
   await writeToSupabase(
     supabase,
     tripId,
     enrichedResult,
     days,
     scoresByPlaceId,
+    skippedPlaces,
   );
 
   return enrichedResult;
@@ -468,6 +511,33 @@ function buildTravelMatrix(places: PlaceRow[]): TravelMatrix {
   return matrix;
 }
 
+/**
+ * Adds a depot node to the travel matrix located at the centroid of the place
+ * catalog, with walking times to/from every place. Returns the depot id, or
+ * null if no place has coordinates (in which case the solver runs without a
+ * depot, i.e. no daily return leg).
+ */
+function addCentroidDepot(matrix: TravelMatrix, places: PlaceRow[]): string | null {
+  const coords = places
+    .map((p) => extractCoords(p.location))
+    .filter((c): c is { lat: number; lng: number } => c != null);
+  if (coords.length === 0) return null;
+
+  const lat = coords.reduce((sum, c) => sum + c.lat, 0) / coords.length;
+  const lng = coords.reduce((sum, c) => sum + c.lng, 0) / coords.length;
+
+  matrix[DEPOT_ID] = { [DEPOT_ID]: 0 };
+  for (const p of places) {
+    const c = extractCoords(p.location);
+    const minutes = c
+      ? Math.ceil((haversineKm(lat, lng, c.lat, c.lng) / WALKING_SPEED_KMH) * 60)
+      : 15;
+    matrix[DEPOT_ID][p.id] = minutes;
+    (matrix[p.id] ??= {})[DEPOT_ID] = minutes;
+  }
+  return DEPOT_ID;
+}
+
 // --- Supabase write ---
 
 async function writeToSupabase(
@@ -475,13 +545,17 @@ async function writeToSupabase(
   tripId: string,
   result: SolverResult,
   days: SolverDay[],
-  scoresByPlaceId: Map<string, number>
+  scoresByPlaceId: Map<string, number>,
+  skippedPlaces: { id: string; name: string }[] = []
 ) {
   // Clean up existing itineraries for this trip before writing new ones
   await supabase
     .from("itineraries")
     .delete()
     .eq("trip_id", tripId);
+
+  let firstItineraryId: string | null = null;
+  let firstDayDate: string | null = null;
 
   for (const daySchedule of result.days) {
     const { data: itinerary, error: itinError } = await supabase
@@ -503,6 +577,10 @@ async function writeToSupabase(
     }
 
     const dayDate = days[daySchedule.dayIndex].date;
+    if (firstItineraryId === null) {
+      firstItineraryId = itinerary.id;
+      firstDayDate = dayDate;
+    }
 
     const itemRows = daySchedule.items.map((item, position) => ({
       itinerary_id: itinerary.id,
@@ -526,6 +604,36 @@ async function writeToSupabase(
           `Failed to create itinerary items: ${itemsError.message}`
         );
       }
+    }
+  }
+
+  // Record the user's selected places that didn't fit so the itinerary view can
+  // list them. They're stored as `note` items (an allowed item_type) on the
+  // first day, outside the visible timeline, and ignored by travel/replan which
+  // only act on `place`/`recommendation` items. Times are a placeholder window
+  // at the end of the day to satisfy the starts_at < ends_at constraint.
+  if (skippedPlaces.length > 0 && firstItineraryId && firstDayDate) {
+    const skippedRows = skippedPlaces.map((place, index) => ({
+      itinerary_id: firstItineraryId,
+      place_id: place.id,
+      item_type: "note",
+      title: place.name,
+      description: "No entró en el plan: no había tiempo suficiente en el día.",
+      starts_at: `${firstDayDate}T23:58:00`,
+      ends_at: `${firstDayDate}T23:59:00`,
+      position: 1000 + index,
+      score: scoresByPlaceId.get(place.id) ?? null,
+    }));
+
+    const { error: skippedError } = await supabase
+      .from("itinerary_items")
+      .insert(skippedRows);
+
+    if (skippedError) {
+      // Non-fatal: the itinerary itself is valid without the "left out" list.
+      console.warn(
+        `[generateItinerary] Could not persist left-out places: ${skippedError.message}`
+      );
     }
   }
 

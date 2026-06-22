@@ -6,6 +6,7 @@ import {
   Clock3Icon,
   ListIcon,
   MapIcon,
+  MapPinOffIcon,
   NavigationIcon,
   SparklesIcon,
 } from "lucide-react";
@@ -108,7 +109,12 @@ function PlaceItem({
 }
 
 function Timeline({ day }: { day: ItineraryDayDto }) {
-  const visibleItems = day.items.filter((item) => item.itemType !== "transfer");
+  // `note` items hold the user's selected places that didn't fit; they're shown
+  // in a separate section (see LeftOutPlaces), never inside the timeline.
+  const timelineItems = day.items.filter((item) => item.itemType !== "note");
+  const visibleItems = timelineItems.filter(
+    (item) => item.itemType !== "transfer",
+  );
 
   return (
     <div>
@@ -121,7 +127,7 @@ function Timeline({ day }: { day: ItineraryDayDto }) {
       </div>
 
       <div className="grid gap-0">
-        {day.items.map((item, itemIndex) => {
+        {timelineItems.map((item, itemIndex) => {
           if (item.itemType === "transfer") {
             return (
               <div
@@ -144,7 +150,7 @@ function Timeline({ day }: { day: ItineraryDayDto }) {
           }
 
           const visibleIndex =
-            day.items
+            timelineItems
               .slice(0, itemIndex + 1)
               .filter((candidate) => candidate.itemType !== "transfer").length -
             1;
@@ -214,12 +220,60 @@ function Timeline({ day }: { day: ItineraryDayDto }) {
   );
 }
 
+function LeftOutPlaces({ trip }: { trip: TripDto }) {
+  // Left-out places are persisted as `note` items on the first day; surface them
+  // regardless of which day is currently selected.
+  const leftOut = trip.days.flatMap((day) =>
+    day.items.filter((item) => item.itemType === "note"),
+  );
+
+  if (leftOut.length === 0) {
+    return null;
+  }
+
+  return (
+    <Card className="mt-3 border-dashed">
+      <CardContent>
+        <div className="flex items-center gap-2">
+          <MapPinOffIcon className="size-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold">
+            Lugares que no entraron ({leftOut.length})
+          </h3>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Elegiste estos lugares, pero no había tiempo suficiente para sumarlos al
+          plan.
+        </p>
+        <ul className="mt-3 grid gap-2">
+          {leftOut.map((item) => (
+            <li
+              className="flex items-center gap-3 rounded-xl border bg-card px-3 py-2"
+              key={item.id}
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">{item.title}</span>
+                {item.place?.category ? (
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {item.place.category}
+                  </span>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 function MapPanel({ day }: { day: ItineraryDayDto }) {
   const mappedItems = useMemo(
     () =>
       day.items.filter(
         (item) =>
-          item.place?.latitude != null && item.place?.longitude != null,
+          item.itemType !== "note" &&
+          item.place?.latitude != null &&
+          item.place?.longitude != null,
       ),
     [day.items],
   );
@@ -493,6 +547,7 @@ export function ItineraryExplorer({
               <Timeline day={selectedDay} />
             </CardContent>
           </Card>
+          <LeftOutPlaces trip={trip} />
         </TabsContent>
         <TabsContent value="map">
           <div className="mt-2">

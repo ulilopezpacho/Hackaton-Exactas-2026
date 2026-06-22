@@ -21,12 +21,18 @@ export async function POST(request: Request) {
     startsOn = MOCK_TRIP.startsOn,
     endsOn = MOCK_TRIP.endsOn,
     config: configOverrides,
+    startPlaceId,
+    endPlaceId,
+    depot,
   } = body as {
     placeIds?: string[];
     city?: string;
     startsOn?: string;
     endsOn?: string;
     config?: Partial<SolverConfig>;
+    startPlaceId?: string | null;
+    endPlaceId?: string | null;
+    depot?: "centroid"; // convenience: anchor every day at the catalog centroid
   };
 
   const config = { ...DEFAULT_CONFIG, ...configOverrides };
@@ -79,12 +85,24 @@ export async function POST(request: Request) {
 
   const travelMatrix = buildMockTravelMatrix(filtered);
 
+  // Optional depot ("hotel"): either an explicit place id from the request, or
+  // the catalog centroid when `depot: "centroid"` is passed.
+  let resolvedStart = startPlaceId ?? null;
+  let resolvedEnd = endPlaceId ?? null;
+  if (depot === "centroid") {
+    const depotId = addCentroidDepot(travelMatrix, filtered);
+    resolvedStart = depotId;
+    resolvedEnd = depotId;
+  }
+
   const input: SolverInput = {
     places,
     mealPlaces,
     days,
     travelMatrix,
     config,
+    startPlaceId: resolvedStart,
+    endPlaceId: resolvedEnd,
   };
 
   const t0 = Date.now();
@@ -115,6 +133,20 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
       Math.cos((lat2 * Math.PI) / 180) *
       Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const MOCK_DEPOT_ID = "__depot__";
+
+function addCentroidDepot(matrix: TravelMatrix, places: MockPlace[]): string {
+  const lat = places.reduce((s, p) => s + p.lat, 0) / places.length;
+  const lng = places.reduce((s, p) => s + p.lng, 0) / places.length;
+  matrix[MOCK_DEPOT_ID] = { [MOCK_DEPOT_ID]: 0 };
+  for (const p of places) {
+    const minutes = Math.ceil((haversineKm(lat, lng, p.lat, p.lng) / WALKING_SPEED_KMH) * 60);
+    matrix[MOCK_DEPOT_ID][p.id] = minutes;
+    (matrix[p.id] ??= {})[MOCK_DEPOT_ID] = minutes;
+  }
+  return MOCK_DEPOT_ID;
 }
 
 function buildMockTravelMatrix(places: MockPlace[]): TravelMatrix {
